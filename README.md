@@ -78,7 +78,7 @@ class MyApp extends StatelessWidget {
 }
 ```
 
-  <img width="200" alt="image" src="https://github.com/user-attachments/assets/09baabbf-07d6-496c-ba8f-a7a4a6a6f8bf">
+  <img width="200" alt="image" src="https://github.com/user-attachments/assets/357e41d3-17fd-40da-8a42-114bc0f69700">
 
 ## Custom builder
 
@@ -143,7 +143,7 @@ TextSniffer<String>(
 )
 ```
 
-  <img width="200" alt="image" src="https://github.com/user-attachments/assets/3a3299c0-6dfe-480f-82d1-c812dc1b58f3">
+  <img width="200" alt="image" src="https://github.com/user-attachments/assets/1d1b4f63-9086-4bdf-9437-cd67465e6c1e">
 
 ## IMPORTANT
 
@@ -183,7 +183,7 @@ TextSniffer<String>(
 )
 ```
 
-  <img width="200" alt="image" src="https://github.com/user-attachments/assets/e9a18f5b-00dd-41c1-a1a1-baffe31d56dc">
+  <img width="200" alt="image" src="https://github.com/user-attachments/assets/ca6c06c9-aba6-4156-8bb4-1d560ccc816f">
 
 Also you can combine regex to find matches.
 
@@ -225,7 +225,7 @@ TextSniffer<String>(
 )
 ```
 
-  <img width="200" alt="image" src="https://github.com/user-attachments/assets/ed2dd69e-44fb-4553-9526-39b8b45a627b">
+  <img width="200" alt="image" src="https://github.com/user-attachments/assets/d3826dd0-5c33-488d-b335-e548e25ab1b0">
 
 ## Max Lines Example
 
