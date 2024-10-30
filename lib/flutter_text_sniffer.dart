@@ -72,7 +72,7 @@ class TextSniffer<T> extends StatelessWidget {
   ///
   /// Defaults to 2. If the text exceeds this number of lines, it will be truncated
   /// with an ellipsis (`...`).
-  final int maxLines = 2;
+  final int maxLines;
 
   /// A callback function that is triggered when a matching part of the text is tapped.
   ///
@@ -119,6 +119,7 @@ class TextSniffer<T> extends StatelessWidget {
     this.matchTextStyle,
     this.textStyle,
     this.textAlign,
+    this.maxLines = 2,
     this.onTapMatch,
     this.matchBuilder,
     this.matchEntries = const [],
