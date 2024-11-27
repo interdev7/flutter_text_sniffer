@@ -91,7 +91,7 @@ class CustomTextWidget extends StatelessWidget {
                       height: 20,
                     ),
                     onPressed: () {
-                      showSnackBar(context, entry);
+                      showSnackBar(context, entry ?? "No entry");
                     },
                     label: Text(
                       text,
@@ -134,7 +134,7 @@ class CustomTextWidget extends StatelessWidget {
                 height: 1.55,
               ),
               matchBuilder: (text, index, entry) {
-                return entry;
+                return entry ?? const Text("No entry");
               },
             ),
           ],

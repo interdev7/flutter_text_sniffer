@@ -10,7 +10,7 @@ class ManyOwnPatterns extends StatelessWidget {
     String text = "Email: example@domain.com or visit our [website]";
 
     // Combine regex for both email and text inside square brackets
-    const combinedRegex = r"(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|\[(.*?)\]";
+    RegExp combinedRegex = RegExp(r"(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|\[(.*?)\]");
 
     return Scaffold(
       appBar: AppBar(

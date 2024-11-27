@@ -66,7 +66,7 @@ class TextSniffer<T> extends StatelessWidget {
   /// If no custom pattern is provided, the default pattern will be used.
   ///
   /// Default: `RegExp(r'\[(.*?)\]')`
-  final String ownPattern;
+  final RegExp? ownPattern;
 
   /// The maximum number of lines for the text before it gets truncated.
   ///
@@ -110,12 +110,12 @@ class TextSniffer<T> extends StatelessWidget {
   ///
   /// - [match]: The string that matched the pattern.
   /// - [index]: The index of the match within the text.
-  final Widget Function(String match, int index, T matchEntry)? matchBuilder;
+  final Widget Function(String match, int index, T? matchEntry)? matchBuilder;
 
-  TextSniffer({
+  const TextSniffer({
     super.key,
     required this.text,
-    this.ownPattern = r'\[(.*?)\]',
+    this.ownPattern,
     this.matchTextStyle,
     this.textStyle,
     this.textAlign,
@@ -123,10 +123,7 @@ class TextSniffer<T> extends StatelessWidget {
     this.onTapMatch,
     this.matchBuilder,
     this.matchEntries = const [],
-  }) : assert(
-          RegExp(ownPattern).allMatches(text).length == matchEntries.length,
-          "The number of matches must match the number of items in matchEntries",
-        );
+  });
 
   void onTapMatchFn(List<T> matchEntries, int index) {
     if (matchEntries.isNotEmpty) {
@@ -144,16 +141,17 @@ class TextSniffer<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Split the text and process each part
-    final spans = text.customSplitMapJoin<InlineSpan>(
-      pattern: RegExp(ownPattern),
+    final spans = text._customSplitMapJoin<InlineSpan>(
+      pattern: ownPattern ?? RegExp(r'\[(.*?)\]'),
       onMatch: (text, index, count) {
         // If a custom matchBuilder is provided, use it
         if (matchBuilder != null) {
+          final entry = matchEntries.isNotEmpty ? matchEntries[index] : null;
           return WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: GestureDetector(
               onTap: () => onTapMatchFn(matchEntries, index),
-              child: matchBuilder!(text, index, matchEntries[index]),
+              child: matchBuilder!(text, index, entry),
             ),
           );
         }
@@ -206,7 +204,7 @@ extension on String {
   /// ```
   /// In this example, the string is split based on words inside square brackets, and
   /// each match is processed differently from the non-matching parts.
-  List<T> customSplitMapJoin<T>({
+  List<T> _customSplitMapJoin<T>({
     required RegExp pattern,
     required _MatchCallback<T> onMatch,
     required _NonMatchCallback<T> onNonMatch,

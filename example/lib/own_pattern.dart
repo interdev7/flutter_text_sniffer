@@ -9,7 +9,7 @@ class OwnPattern extends StatelessWidget {
   Widget build(BuildContext context) {
     String text = "Email: example@domain.com or visit our website";
 
-    const ownPattern = r"(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"; // Regex for email
+    RegExp ownPattern = RegExp(r"(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"); // Regex for email
 
     return Scaffold(
       appBar: AppBar(
