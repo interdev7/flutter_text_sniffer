@@ -16,7 +16,6 @@ Content
 - Interactive text segments that respond to user taps.
 - Styling options for both matching and non-matching text.
 - Support for custom match builders to define the appearance of detected patterns.
-- Max line truncation with ellipsis for overflowing text.
 
 ## Installation
 
