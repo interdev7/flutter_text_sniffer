@@ -1,4 +1,6 @@
 # TextSniffer
+![text_sniffer](https://github.com/user-attachments/assets/f9a6264e-863a-486f-91e4-fa9d2292f0a9)
+
 
 `TextSniffer` is a Flutter widget that detects specific patterns within a text and makes them interactive. It allows you to define custom patterns using regular expressions, apply styles to detected parts, and handle user interactions like taps on links or specific words.
 
