@@ -145,21 +145,7 @@ TextSniffer<String>(
 
   <img width="200" alt="image" src="https://github.com/user-attachments/assets/1d1b4f63-9086-4bdf-9437-cd67465e6c1e">
 
-## IMPORTANT
 
-> [!WARNING]
-> If you use `matchBuilder`, you must be sure that the number of matches in the text matches the number of items in `matchEntries`, otherwise you will get an error: **_"The number of matches must match the number of items in matchEntries"_**
-
-Example:
-
-```dart
-
-TextSniffer<String>(
-  text: "Check out [Flutter] and [Google]!", // Two matches
-  matchEntries: const ['https://flutter.dev'], // One element
-  matchBuilder: (text, index, entry) => Text(text), // Here error!!!
-)
-```
 
 ## Own Patterns
 
