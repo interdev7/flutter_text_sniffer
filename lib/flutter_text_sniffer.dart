@@ -72,7 +72,7 @@ class TextSniffer<T> extends StatelessWidget {
   ///
   /// Defaults to 2. If the text exceeds this number of lines, it will be truncated
   /// with an ellipsis (`...`).
-  final int maxLines;
+  final int? maxLines;
 
   /// A callback function that is triggered when a matching part of the text is tapped.
   ///
@@ -119,7 +119,7 @@ class TextSniffer<T> extends StatelessWidget {
     this.matchTextStyle,
     this.textStyle,
     this.textAlign,
-    this.maxLines = 2,
+    this.maxLines,
     this.onTapMatch,
     this.matchBuilder,
     this.matchEntries = const [],
@@ -211,39 +211,33 @@ extension on String {
   }) {
     List<T> result = [];
     int currentIndex = 0;
-    int matchIndex = 0; // Index of the current match
+    int matchIndex = 0;
     final matchCount = pattern.allMatches(this).length;
+
     for (var match in pattern.allMatches(this)) {
-      // Add the part of the string before the match
       if (match.start > currentIndex) {
         result.add(onNonMatch(substring(currentIndex, match.start)));
       }
-      // Safely access matched groups
-      String matchedText = "";
 
-      for (var i = 0; i < matchCount; i++) {
-        if (match[i] != null) {
-          final matches = match.pattern.allMatches(match[i]!);
-          if (matches.isNotEmpty) {
-            matchedText = matches.last[i]!;
-          } else {
-            matchedText = match[i]!;
-          }
+      // We are looking for the first non-zero group
+      String matchedText = '';
+      for (var i = 1; i <= match.groupCount; i++) {
+        final group = match.group(i);
+        if (group != null) {
+          matchedText = group;
+          break;
         }
       }
-      // Add the processed match with its index
-      result.add(onMatch(
-        matchedText,
-        matchIndex,
-        matchCount,
-      ));
+      // If no group is found, we take the whole match
+      if (matchedText.isEmpty) {
+        matchedText = match[0] ?? '';
+      }
 
-      // Update the current index
+      result.add(onMatch(matchedText, matchIndex, matchCount));
       currentIndex = match.end;
       matchIndex++;
     }
 
-    // Add the remaining part of the string after the last match
     if (currentIndex < length) {
       result.add(onNonMatch(substring(currentIndex)));
     }
