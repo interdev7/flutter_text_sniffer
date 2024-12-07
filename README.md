@@ -25,7 +25,7 @@ To use `TextSniffer`, add it to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_text_sniffer: ^1.2.0
+  flutter_text_sniffer: ^2.2.0
 ```
 
 ## Usage
