@@ -34,7 +34,7 @@ class DefaultTextSniffer extends StatelessWidget {
               fontWeight: FontWeight.w600,
               decoration: TextDecoration.underline,
             ),
-            onTapMatch: (link, index, error) {
+            onTapMatch: (link, match, type, index, error) {
               if (error == null) {
                 showSnackBar(context, link ?? "Not found");
               }

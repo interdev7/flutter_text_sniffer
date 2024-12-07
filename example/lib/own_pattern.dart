@@ -36,7 +36,7 @@ class OwnPattern extends StatelessWidget {
             fontWeight: FontWeight.w600,
             decoration: TextDecoration.underline,
           ),
-          onTapMatch: (email, index, error) {
+          onTapMatch: (email, match, type, index, error) {
             if (error == null) {
               showSnackBar(context, email ?? "Not found");
             }

@@ -38,12 +38,12 @@ class CustomTextWidget extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 decoration: TextDecoration.underline,
               ),
-              onTapMatch: (link, index, error) {
+              onTapMatch: (link, match, type, index, error) {
                 if (error == null) {
                   showSnackBar(context, link ?? "Not found");
                 }
               },
-              matchBuilder: (text, index, entry) {
+              matchBuilder: (text, index, type, entry) {
                 return Container(
                   padding: const EdgeInsets.only(left: 4.0, right: 4.0),
                   child: Row(
@@ -81,7 +81,7 @@ class CustomTextWidget extends StatelessWidget {
                 fontWeight: FontWeight.w400,
                 height: 1.55,
               ),
-              matchBuilder: (text, index, entry) {
+              matchBuilder: (text, index, type, entry) {
                 return Container(
                   padding: const EdgeInsets.only(left: 4.0, right: 4.0),
                   child: ElevatedButton.icon(
@@ -133,7 +133,7 @@ class CustomTextWidget extends StatelessWidget {
                 fontWeight: FontWeight.w400,
                 height: 1.55,
               ),
-              matchBuilder: (text, index, entry) {
+              matchBuilder: (text, index, type, entry) {
                 return entry ?? const Text("No entry");
               },
             ),
