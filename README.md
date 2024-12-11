@@ -112,7 +112,7 @@ TextSniffer<String>(
 )
 ```
 
-<img width="200" alt="image" src="https://github.com/user-attachments/assets/918d31b5-5ec4-4530-b46c-cf478353fcf3">
+<img width="200" alt="image" src="https://github.com/user-attachments/assets/2492ed6c-7c50-4617-96f6-0926ccb077dc">
 
 ## Defining Custom Patterns
 
