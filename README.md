@@ -11,7 +11,6 @@
 - [Usage](#usage)
 - [Custom Builder](#custom-builder)
 - [Defining Custom sniffers](#defining-custom-patterns)
-- [Styling Matches](#styling-matches)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -45,7 +44,7 @@ Here’s a simple example of how to use the `TextSniffer` widget:
 TextSniffer(
    text: "Contact us at support@example.com or visit https://example.com/product?name=iPhone",
    snifferTypes: [
-    // There are built in sniffers
+    // They are built in sniffers
      EmailSnifferType(), 
      LinkSnifferType(),
    ],
@@ -57,7 +56,7 @@ TextSniffer(
 )
 ```
 
-<img width="200" alt="image" src="https://github.com/user-attachments/assets/357e41d3-17fd-40da-8a42-114bc0f69700">
+<img width="200" alt="image" src="https://github.com/user-attachments/assets/c9c6f7b1-069f-4a8c-80a1-ad65735957ef">
 
 ## Custom Builder
 
@@ -113,11 +112,11 @@ TextSniffer<String>(
 )
 ```
 
-<img width="200" alt="image" src="https://github.com/user-attachments/assets/1d1b4f63-9086-4bdf-9437-cd67465e6c1e">
+<img width="200" alt="image" src="https://github.com/user-attachments/assets/918d31b5-5ec4-4530-b46c-cf478353fcf3">
 
 ## Defining Custom Patterns
 
-You can define custom patterns using regular expressions. For example, to detect email addresses:
+You can define custom patterns using regular expressions. For example, to detect IP addresses, hashtag and custom:
 
 ```dart
 // Custom sniffer. For example: [Example] => word in brackets => Example
@@ -184,7 +183,7 @@ TextSniffer(
 )
 ```
 
-<img width="200" alt="image" src="https://github.com/user-attachments/assets/ca6c06c9-aba6-4156-8bb4-1d560ccc816f">
+<img width="200" alt="image" src="https://github.com/user-attachments/assets/d5a97bff-a10e-4098-aeca-ad8e5d438c1a">
 
 ## Contributing
 
