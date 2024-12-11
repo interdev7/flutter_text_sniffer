@@ -32,4 +32,5 @@
 
 ## [4.4.0]
 
-* Added 
+* Added the ability to create your own sniffer types.
+* Updated documentation 

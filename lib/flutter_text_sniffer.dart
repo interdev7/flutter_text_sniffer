@@ -148,17 +148,15 @@ class TextSniffer<T> extends StatelessWidget {
   ///
   ///```dart
   /// class CustomSnifferType extends SnifferType {
-  ///   CustomSnifferType()
-  ///       : super(
-  ///           style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigoAccent),
-  ///           pattern: RegExp(r'\[(.*?)\]|(ABC)'),
-  ///         );
-
-  ///     @override
-  ///     String toString() => 'custom';
-  ///   }
+  ///   @override
+  ///   RegExp get pattern => RegExp(r'\[(.*?)\]');
   ///
+  ///   @override
+  ///   TextStyle? get style => const TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold);
   ///
+  ///   @override
+  ///   String toString() => 'custom';
+  /// }
   ///
   /// TextSniffer(
   ///   text: "[Email] example@domain.com. Visit http://example.com. ABC",
