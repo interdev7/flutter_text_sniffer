@@ -1,32 +1,39 @@
 # TextSniffer
+
 ![text_sniffer](https://github.com/user-attachments/assets/f9a6264e-863a-486f-91e4-fa9d2292f0a9)
 
+`TextSniffer` is a powerful Flutter widget designed to detect and interact with specific text patterns. It allows developers to define custom patterns using regular expressions, apply unique styles to detected text, and handle user interactions such as taps on links or specific words.
 
-`TextSniffer` is a Flutter widget that detects specific patterns within a text and makes them interactive. It allows you to define custom patterns using regular expressions, apply styles to detected parts, and handle user interactions like taps on links or specific words.
+## Table of Contents
 
-Content
-
+- [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
-- [Custom builder](#custom-builder)
-- [Own Patterns](#own-patterns)
-- [Max lines](#max-lines-example)
+- [Custom Builder](#custom-builder)
+- [Defining Custom sniffers](#defining-custom-patterns)
+- [Styling Matches](#styling-matches)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Features
 
-- Customizable text patterns using regular expressions.
-- Interactive text segments that respond to user taps.
-- Styling options for both matching and non-matching text.
-- Support for custom match builders to define the appearance of detected patterns.
+- **Customizable Patterns**: Use regular expressions to define text patterns.
+- **Interactive Text**: Make text segments interactive, responding to user taps.
+- **Styling Options**: Apply styles to both matching and non-matching text.
+- **Custom Match Builders**: Define how detected patterns appear.
+- **Multiple Search Sniffers**: Supports for emails and links by default but you can create own Sniffers.
+- **Individual Styling**: Style different types of matches individually.
 
 ## Installation
 
-To use `TextSniffer`, add it to your `pubspec.yaml`:
+To use `TextSniffer`, add the following to your `pubspec.yaml`:
 
-```yaml
+```dart
 dependencies:
-  flutter_text_sniffer: ^2.2.0
+  flutter_text_sniffer: ^latest_version
 ```
+
+Then, run `flutter pub get` to install the package.
 
 ## Usage
 
@@ -35,87 +42,56 @@ dependencies:
 Here’s a simple example of how to use the `TextSniffer` widget:
 
 ```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_text_sniffer/flutter_text_sniffer.dart';
-
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        body: Center(
-          child: TextSniffer<String>(
-            text: "Check out [Flutter] and [Google]!",
-            matchEntries: ['https://flutter.dev', 'https://google.com'],
-            onTapMatch: (link, index, error) {
-              if(error == null){
-                print('Tapped link: $link');
-              }
-            },
-            textStyle: const TextStyle(
-              color: Color(0xFF262626),
-              fontSize: 24,
-              fontFamily: 'Roboto',
-              fontWeight: FontWeight.w400,
-              height: 1.55,
-            ),
-            matchTextStyle: const TextStyle(
-              color: Color.fromARGB(255, 63, 112, 211),
-              fontSize: 24,
-              height: 1.55,
-              fontFamily: 'Roboto',
-              fontWeight: FontWeight.w600,
-              decoration: TextDecoration.underline,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+TextSniffer(
+   text: "Contact us at support@example.com or visit https://example.com/product?name=iPhone",
+   snifferTypes: [
+    // There are built in sniffers
+     EmailSnifferType(), 
+     LinkSnifferType(),
+   ],
+   onTapMatch: (match, matchText, type, index, error) {
+     if (error == null) {
+       print('Tapped on: $matchText');
+     }
+   },
+)
 ```
 
-  <img width="200" alt="image" src="https://github.com/user-attachments/assets/357e41d3-17fd-40da-8a42-114bc0f69700">
+<img width="200" alt="image" src="https://github.com/user-attachments/assets/357e41d3-17fd-40da-8a42-114bc0f69700">
 
-## Custom builder
+## Custom Builder
 
-#### To customize how matched text is displayed, use the `matchBuilder` property:
+To customize how matched text is displayed, use the `matchBuilder` property:
 
 ```dart
-
 final images = <String>[
-      "assets/flutter.png",
-      "assets/google.png",
-    ];
+  "assets/flutter.png",
+  "assets/google.png",
+];
+
+class CustomSnifferType extends SnifferType {
+  @override
+  RegExp get pattern => RegExp(r'\[(.*?)\]');
+
+  @override
+  TextStyle? get style => const TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold);
+
+  @override
+  String toString() => 'custom';
+}
 
 TextSniffer<String>(
   text: "Check out [Flutter] and [Google]!",
   matchEntries: const ['https://flutter.dev', 'https://google.com'],
-  textStyle: const TextStyle(
-    color: Color(0xFF262626),
-    fontSize: 14,
-    fontFamily: 'Roboto',
-    fontWeight: FontWeight.w400,
-    height: 1.55,
-  ),
-  matchTextStyle: const TextStyle(
-    color: Color.fromARGB(255, 63, 112, 211),
-    fontSize: 14,
-    height: 1.55,
-    fontFamily: 'Roboto',
-    fontWeight: FontWeight.w600,
-    decoration: TextDecoration.underline,
-  ),
-  onTapMatch: (link, index, error) {
+  snifferTypes: [
+    CustomSnifferType(),
+  ],
+  onTapMatch: (entry, match, type, index, error) {
     if (error == null) {
-      showSnackBar(context, link ?? "Not found");
+      showSnackBar(context, entry ?? "Not found");
     }
   },
-  matchBuilder: (text, index, entry) {
+  matchBuilder: (match, index, type, entry) {
     return Container(
       padding: const EdgeInsets.only(left: 4.0, right: 4.0),
       child: Row(
@@ -127,15 +103,8 @@ TextSniffer<String>(
             height: 20,
           ),
           Text(
-            text,
-            style: const TextStyle(
-              color: Color.fromARGB(255, 63, 112, 211),
-              fontSize: 14,
-              height: 1.55,
-              fontFamily: 'Roboto',
-              fontWeight: FontWeight.w600,
-              decoration: TextDecoration.underline,
-            ),
+            match,
+            style: type.style,
           ),
         ],
       ),
@@ -144,84 +113,89 @@ TextSniffer<String>(
 )
 ```
 
-  <img width="200" alt="image" src="https://github.com/user-attachments/assets/1d1b4f63-9086-4bdf-9437-cd67465e6c1e">
+<img width="200" alt="image" src="https://github.com/user-attachments/assets/1d1b4f63-9086-4bdf-9437-cd67465e6c1e">
 
-
-
-## Own Patterns
+## Defining Custom Patterns
 
 You can define custom patterns using regular expressions. For example, to detect email addresses:
 
 ```dart
-String text = "Email: example@domain.com or visit our website";
+// Custom sniffer. For example: [Example] => word in brackets => Example
+class CustomSnifferType extends SnifferType {
+  @override
+  RegExp get pattern => RegExp(r'\[(.*?)\]');
 
-final ownPattern = RegExp(r"(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"); // Regex for email
+  @override
+  TextStyle? get style => const TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold);
 
-TextSniffer<String>(
-  text: text,
-  ownPattern: ownPattern, // Custom pattern to find email addresses
-  matchEntries: ['mailto:example@domain.com'],
-  onTapMatch: (email, index, error) {
-    if (error == null) {
-      print('Tapped email: $email'); // Prints: mailto:example@domain.com
-    }
+  @override
+  String toString() => 'custom';
+}
 
-  },
-)
-```
+// IP address sniffer
+class IpAddressSnifferType extends SnifferType {
+  @override
+  RegExp get pattern => RegExp(r'\b' // Start of word (word borders)
+      r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)' // 1 octet
+      r'\.' // Dot
+      r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)' // 2 octet
+      r'\.' // Dot
+      r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)' // 3 octet
+      r'\.' // Dot
+      r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)' // 4 octet
+      r'\b' // End of word
+      );
 
-  <img width="200" alt="image" src="https://github.com/user-attachments/assets/ca6c06c9-aba6-4156-8bb4-1d560ccc816f">
+  @override
+  TextStyle? get style => const TextStyle(color: Colors.orange, fontStyle: FontStyle.italic);
 
-Also you can combine regex to find matches.
+  @override
+  String toString() => 'ip_address';
+}
 
-For example, if you need to find both an email and text in square brackets:
+// Hashtag sniffer
+class HashtagSnifferType extends SnifferType {
+  @override
+  RegExp get pattern => RegExp(r'\B#\w\w+');
 
-```dart
-String text = "Email: example@domain.com or visit our [website]";
+  @override
+  TextStyle? get style => const TextStyle(color: Colors.purple, fontWeight: FontWeight.bold);
 
-// Combine regex for both email and text inside square brackets
-final combinedRegex = RegExp(r"(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|\[(.*?)\]");
+  @override
+  String toString() => 'hashtag';
+}
 
-TextSniffer<String>(
-  text: text,
-  ownPattern: combinedRegex, // Use it
+TextSniffer(
+  text: "Check out [Flutter] and [Google]!\nCheck out #Flutter and #Google! IP addresses: 192.168.0.1, 192.168.0.124",
+  snifferTypes: [
+    CustomSnifferType(),
+    HashtagSnifferType(),
+    IpAddressSnifferType(),
+  ],
   matchEntries: const [
-            "mailto:example@gamil.com", // for clicking on email address
-            "https://example.com", // for clicking on website
-          ],
-  textStyle: const TextStyle(
-    color: Color(0xFF262626),
-    fontSize: 14,
-    fontFamily: 'Roboto',
-    fontWeight: FontWeight.w400,
-    height: 1.55,
-  ),
-  matchTextStyle: const TextStyle(
-    color: Color.fromARGB(255, 63, 112, 211),
-    fontSize: 14,
-    height: 1.55,
-    fontFamily: 'Roboto',
-    fontWeight: FontWeight.w600,
-    decoration: TextDecoration.underline,
-  ),
-  onTapMatch: (entry, index, error) {
+    'https://flutter.dev',
+    'https://google.com',
+  ],
+  onTapMatch: (entry, matchText, type, index, error) {
     if (error == null) {
-      print(entry); // Prints: mailto:example@domain.com or https://example.com
+      print('Tapped on: $matchText');
     }
   },
 )
 ```
 
-  <img width="200" alt="image" src="https://github.com/user-attachments/assets/d3826dd0-5c33-488d-b335-e548e25ab1b0">
+<img width="200" alt="image" src="https://github.com/user-attachments/assets/ca6c06c9-aba6-4156-8bb4-1d560ccc816f">
 
-## Max Lines Example
+## Contributing
 
-You can limit the number of lines the text can occupy:
+We welcome contributions! To contribute to `TextSniffer`, please follow these steps:
 
-```dart
-TextSniffer<String>(
-  text: "This is a long text that will be truncated if it exceeds two lines. Here is more text to ensure we exceed the limit.",
-  matchEntries: [],
-  maxLines: 2, // Limits to two lines
-)
-```
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature/AmazingFeature`).
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
+4. Push to the branch (`git push origin feature/AmazingFeature`).
+5. Open a Pull Request.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.

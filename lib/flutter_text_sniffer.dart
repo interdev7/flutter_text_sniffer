@@ -3,14 +3,49 @@ library flutter_text_sniffer;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_text_sniffer/sniffer_types.dart';
+
+/// A callback type for processing matched text segments.
+///
+/// Parameters:
+/// - [text]: The matched text segment
+/// - [index]: The index of the match in the original text
+/// - [matchCount]: The total number of matches found
+/// - [type]: The type of the match (phone, email, link, or custom)
+typedef _MatchCallback<T> = T Function(String text, int index, int matchCount, SnifferType type);
+
+/// A callback type for processing non-matched text segments.
+///
+/// Parameters:
+/// - [nonMatch]: The non-matched text segment
+typedef _NonMatchCallback<T> = T Function(String nonMatch);
+
+/// A callback type for handling tap events on matched text segments.
+///
+/// Parameters:
+/// - [match]: The matched text segment
+/// - [matchText]: The matched text segment
+/// - [type]: The type of the match (phone, email, link, or custom)
+/// - [index]: The index of the match in the original text
+/// - [error]: An optional error object that might occur during the tap event
+typedef OnTapMatch<T> = void Function(T? match, String matchText, SnifferType type, int index, Object? error);
+
+/// A callback type for building custom widgets for matched text segments.
+///
+/// Parameters:
+/// - [text]: The matched text segment
+/// - [index]: The index of the match in the original text
+/// - [type]: The type of the match (phone, email, link, or custom)
+/// - [matchEntry]: The corresponding entry from [matchEntries] if available
+typedef MatchBuilder<T> = Widget Function(String text, int index, SnifferType type, T? matchEntry);
 
 /// A widget that detects specific patterns within a text and makes them interactive.
 ///
 /// [TextSniffer] allows you to define custom patterns within the text using regular
 /// expressions, apply styles to the detected parts, and handle user interactions
 /// with these parts, such as taps on links or specific words.
-
 class TextSniffer<T> extends StatelessWidget {
   /// The full text to be displayed.
   final String text;
@@ -18,80 +53,126 @@ class TextSniffer<T> extends StatelessWidget {
   /// The style applied to non-matching text.
   final TextStyle? textStyle;
 
-  /// The style applied to the matching parts of the text.
-  final TextStyle? matchTextStyle;
+  /// How the text should be aligned horizontally.
+  final TextAlign textAlign;
 
-  /// A property that defines the styles applied to different match types found within the text.
+  /// The directionality of the text.
   ///
-  /// The `matchesTextStyle` object allows you to specify individual styles for each type of match,
-  /// such as phone numbers, email addresses, URLs, and custom patterns. These styles are applied
-  /// when their respective types are detected in the text.
+  /// This decides how [textAlign] values like [TextAlign.start] and
+  /// [TextAlign.end] are interpreted.
   ///
-  /// Available styles:
-  /// - `phoneTextStyle`: Style for matched phone numbers.
-  /// - `emailTextStyle`: Style for matched email addresses.
-  /// - `linkTextStyle`: Style for matched URLs.
-  /// - `customTextStyle`: Style for matched custom patterns (e.g., `[Flutter]`).
+  /// This is also used to disambiguate how to render bidirectional text. For
+  /// example, if the [text] is an English phrase followed by a Hebrew phrase,
+  /// in a [TextDirection.ltr] context the English phrase will be on the left
+  /// and the Hebrew phrase to its right, while in a [TextDirection.rtl]
+  /// context, the English phrase will be on the right and the Hebrew phrase on
+  /// its left.
   ///
-  /// Example:
-  /// ```dart
-  /// MatchesTextStyle matchesTextStyle = MatchesTextStyle(
-  ///   phoneTextStyle: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-  ///   emailTextStyle: TextStyle(color: Colors.blue, fontStyle: FontStyle.italic),
-  ///   linkTextStyle: TextStyle(color: Colors.purple, decoration: TextDecoration.underline),
-  ///   customTextStyle: TextStyle(color: Colors.orange),
-  /// );
-  ///
-  /// TextSniffer(
-  ///   text: "Call me at +1 800 555 0199 or email example@domain.com. Visit http://example.com",
-  ///   matchesTextStyle: matchesTextStyle,
-  ///   searchTypes: const [SearchType.phone, SearchType.email, SearchType.link],
-  ///   textStyle: TextStyle(color: Colors.black),
-  /// );
-  /// ```
-  ///
-  /// Default behavior:
-  /// If `matchesTextStyle` is not provided or a specific type is not styled, the `matchTextStyle`
-  /// will be used as a fallback for the corresponding matches.
-  final MatchesTextStyle? matchesTextStyle;
+  /// Defaults to the ambient [Directionality], if any. If there is no ambient
+  /// [Directionality], then this must not be null.
+  final TextDirection? textDirection;
 
-  /// A list of search types to apply for text matching.
+  /// Whether the text should break at soft line breaks.
   ///
-  /// Each search type uses its own regular expression to find matches in the text.
-  /// Available search types:
+  /// If false, the glyphs in the text will be positioned as if there was unlimited horizontal space.
+  final bool softWrap;
+
+  /// How visual overflow should be handled.
+  final TextOverflow overflow;
+
+  /// Deprecated. Will be removed in a future version of Flutter. Use
+  /// [textScaler] instead.
   ///
-  /// - [SearchType.phone]: Matches phone numbers.
-  /// - [SearchType.email]: Matches email addresses.
-  /// - [SearchType.link]: Matches URLs.
-  /// - [SearchType.custom]: Matches based on a custom regular expression,
-  ///   provided through the [ownPattern] parameter.
+  /// The number of font pixels for each logical pixel.
+  ///
+  /// For example, if the text scale factor is 1.5, text will be 50% larger than
+  /// the specified font size.
+  @Deprecated(
+    'Use textScaler instead. '
+    'Use of textScaleFactor was deprecated in preparation for the upcoming nonlinear text scaling support. '
+    'This feature was deprecated after v3.12.0-2.0.pre.',
+  )
+  double get textScaleFactor => textScaler.textScaleFactor;
+
+  /// {@macro flutter.painting.textPainter.textScaler}
+  final TextScaler textScaler;
+
+  /// An optional maximum number of lines for the text to span, wrapping if necessary.
+  /// If the text exceeds the given number of lines, it will be truncated according
+  /// to [overflow].
+  ///
+  /// If this is 1, text will not wrap. Otherwise, text will be wrapped at the
+  /// edge of the box.
+  final int? maxLines;
+
+  /// Used to select a font when the same Unicode character can
+  /// be rendered differently, depending on the locale.
+  ///
+  /// It's rarely necessary to set this property. By default its value
+  /// is inherited from the enclosing app with `Localizations.localeOf(context)`.
+  ///
+  /// See [RenderParagraph.locale] for more information.
+  final Locale? locale;
+
+  /// {@macro flutter.painting.textPainter.strutStyle}
+  final StrutStyle? strutStyle;
+
+  /// {@macro flutter.painting.textPainter.textWidthBasis}
+  final TextWidthBasis textWidthBasis;
+
+  /// {@macro dart.ui.textHeightBehavior}
+  final TextHeightBehavior? textHeightBehavior;
+
+  /// The [SelectionRegistrar] this rich text is subscribed to.
+  ///
+  /// If this is set, [selectionColor] must be non-null.
+  final SelectionRegistrar? selectionRegistrar;
+
+  /// The color to use when painting the selection.
+  ///
+  /// This is ignored if [selectionRegistrar] is null.
+  ///
+  /// See the section on selections in the [RichText] top-level API
+  /// documentation for more details on enabling selection in [RichText]
+  /// widgets.
+  final Color? selectionColor;
+
+  /// Semantic label for accessibility.
+  final String? semanticsLabel;
+
+  /// A list of sniffer types to apply for text matching.
+  ///
+  /// Each sniffer type uses its own regular expression to find matches in the text.
+  /// Available sniffer types:
+
   ///
   ///```dart
-  /// final ownPattern = RegExp(r"\[(.*?)\]|(ABC)"); // For "Call me" and "ABC"
+  /// class CustomSnifferType extends SnifferType {
+  ///   CustomSnifferType()
+  ///       : super(
+  ///           style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigoAccent),
+  ///           pattern: RegExp(r'\[(.*?)\]|(ABC)'),
+  ///         );
+
+  ///     @override
+  ///     String toString() => 'custom';
+  ///   }
+  ///
+  ///
   ///
   /// TextSniffer(
-  ///   text: "[Call me] at +1 800 555 0199 or email example@domain.com. Visit http://example.com. ABC",
+  ///   text: "[Email] example@domain.com. Visit http://example.com. ABC",
   ///   maxLines: 2,
-  ///   searchTypes: const [
-  ///     SearchType.email,
-  ///     SearchType.custom,
-  ///     SearchType.link,
-  ///     SearchType.phone,
+  ///   snifferTypes: const [
+  ///     EmailSnifferType(),
+  ///     LinkSnifferType(),
+  ///     CustomSnifferType(), // Use it
   ///   ],
-  ///   ownPattern: ownPattern,
-  ///   textStyle: const TextStyle(
-  ///       color: Colors.black,
-  ///    ),
-  ///   matchTextStyle: const TextStyle(
-  ///       color: Colors.red,
-  ///       fontWeight: FontWeight.bold,
-  ///    ),
   /// )
   ///```
   ///
-  /// If no search types are provided, the default regular expression is used,
-  /// which looks for text inside square brackets (e.g., `[Flutter]`).
-  final List<SearchType>? searchTypes;
+
+  final List<SnifferType> snifferTypes;
 
   /// The list of entries corresponding to each match in the text.
   ///
@@ -101,55 +182,6 @@ class TextSniffer<T> extends StatelessWidget {
   ///
   /// The length of this list should match the number of detected matches.
   final List<T> matchEntries;
-
-  /// Text alignment for the entire widget.
-  ///
-  /// Determines how the text is aligned within its container (e.g., left, right,
-  /// center, etc.). Defaults to [TextAlign.start].
-  final TextAlign? textAlign;
-
-  /// How visual overflow should be handled.
-  ///
-  /// Default: `TextOverflow.ellipsis`
-  final TextOverflow? overflow;
-
-  /// A custom regular expression pattern used to find matches within the text.
-  ///
-  /// If this pattern is provided, it will override the default pattern, which looks
-  /// for matches inside square brackets (e.g., `[Flutter]`). The custom pattern allows
-  /// you to define your own rules for detecting parts of the text that need special
-  /// styling or interactivity.
-  ///
-  /// Example:
-  /// ```dart
-  /// String text = "Email: example@domain.com or visit our website";
-  /// // Combine regex for both email and text inside square brackets
-  /// final ownPattern = RegExp(r"(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})");
-  ///
-  /// TextSniffer<String>(
-  ///   text: text,
-  ///   ownPattern: ownPattern, // Custom pattern to find email addresses
-  ///   matchEntries: ['mailto:example@domain.com'],
-  ///   onTapMatch: (email, error) {
-  ///     print('Tapped email: $email'); // Prints: mailto:example@domain.com
-  ///   },
-  /// )
-  /// ```
-  ///
-  /// In this example, the custom pattern detects email addresses in the text,
-  /// making them interactive. The default pattern of detecting text inside square
-  /// brackets is replaced by the email detection logic.
-  ///
-  /// If no custom pattern is provided, the default pattern will be used.
-  ///
-  /// Default: `RegExp(r'\[(.*?)\]')`
-  final RegExp? ownPattern;
-
-  /// The maximum number of lines for the text before it gets truncated.
-  ///
-  /// If the text exceeds this number of lines, it will be truncated
-  /// with an ellipsis (`...`).
-  final int? maxLines;
 
   /// A callback function that is triggered when a matching part of the text is tapped.
   ///
@@ -167,7 +199,7 @@ class TextSniffer<T> extends StatelessWidget {
   /// TextSniffer<String>(
   ///   text: "Visit [Flutter] or [Google]",
   ///   matchEntries: ['https://flutter.dev', 'https://google.com'],
-  ///   onTapMatch: (link, error) {
+  ///   onTapMatch: (link, match, type, index, error) {
   ///     print('Tapped link: $link');
   ///     // Open the link or perform an action
   ///   },
@@ -177,7 +209,7 @@ class TextSniffer<T> extends StatelessWidget {
   /// In this example, the words "Flutter" and "Google" will be rendered as interactive
   /// links. When tapped, the corresponding URL is printed.
   /// - [match]: The object of type [T] associated with the tapped match.
-  final void Function(T? entry, String match, SearchType type, int index, Object? error)? onTapMatch;
+  final OnTapMatch<T>? onTapMatch;
 
   /// A custom builder function for creating the [TextSpan] for each match.
   ///
@@ -185,77 +217,69 @@ class TextSniffer<T> extends StatelessWidget {
   /// displayed and interacted with. If provided, it will override the default
   /// behavior and style for matches.
   ///
+  /// Parameters:
   /// - [match]: The string that matched the pattern.
   /// - [index]: The index of the match within the text.
-  final Widget Function(String match, int index, SearchType type, T? matchEntry)? matchBuilder;
+  /// - [type]: The type of the match (phone, email, link, or custom).
+  /// - [matchEntry]: The corresponding entry from [matchEntries] if available.
+  final MatchBuilder<T>? matchBuilder;
 
   const TextSniffer({
     super.key,
     required this.text,
-    this.searchTypes,
-    this.ownPattern,
-    this.matchTextStyle,
-    this.matchesTextStyle,
+    this.snifferTypes = const [],
     this.textStyle,
-    this.textAlign,
-    this.overflow,
+    this.semanticsLabel,
+    this.locale,
+    this.selectionColor,
+    this.textScaler = TextScaler.noScaling,
+    this.selectionRegistrar,
+    this.strutStyle,
+    this.softWrap = true,
+    this.textDirection,
+    this.textHeightBehavior,
+    this.textAlign = TextAlign.start,
+    this.overflow = TextOverflow.clip,
     this.maxLines,
     this.onTapMatch,
+    this.textWidthBasis = TextWidthBasis.parent,
     this.matchBuilder,
     this.matchEntries = const [],
   });
 
-  void onTapMatchFn(List<T> matchEntries, String match, SearchType type, int index) {
+  /// Internal method to handle tap events on matched text segments.
+  ///
+  /// Calls the [onTapMatch] callback with the appropriate parameters and handles any errors
+  /// that might occur during the callback execution.
+  void onTapMatchFn(List<T> matchEntries, String match, SnifferType type, int index) {
     try {
-      onTapMatch?.call(matchEntries[index], match, type, index, null);
-    } catch (e, s) {
-      onTapMatch?.call(null, match, type, index, e);
-      if (kDebugMode) {
-        print("Exception:\n$e\nStack trace: \n$s");
+      if (index < 0 || index >= matchEntries.length) {
+        throw NoMatcheEntryFoundException("No match entry found at index $index. Type: $type");
       }
+      onTapMatch?.call(matchEntries[index], match, type, index, null);
+    } on NoMatcheEntryFoundException catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      onTapMatch?.call(null, match, type, index, e);
     }
-  }
-
-  Map<SearchType, RegExp> get _patternByType {
-    return {
-      SearchType.phone: RegExp(
-        r'(\+?\d{1,3}[\s\(\)-]?)?(\(?\d{1,4}\)?[\s\(\)-]?\d{1,4}[\s\(\)-]?\d{1,4}[\s\(\)-]?\d{1,4}|\d{10})',
-        caseSensitive: false,
-      ),
-      SearchType.email: RegExp(r'(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'),
-      SearchType.link: RegExp(
-        r'((http|https|ftp|ftps|sftp|file|mailto|telnet|ssh|ws|wss|irc|rtsp|rtmp|sip|sms|tel):\/\/)?(www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/[^\s]*)?',
-        caseSensitive: false,
-      ),
-      SearchType.custom: ownPattern ?? RegExp(r'\[(.*?)\]'),
-    };
-  }
-
-  Map<SearchType, TextStyle?> get _matcheStyles {
-    return {
-      SearchType.phone: matchesTextStyle?.phoneTextStyle ?? matchTextStyle,
-      SearchType.email: matchesTextStyle?.emailTextStyle ?? matchTextStyle,
-      SearchType.link: matchesTextStyle?.linkTextStyle ?? matchTextStyle,
-      SearchType.custom: matchesTextStyle?.customTextStyle ?? matchTextStyle,
-    };
   }
 
   @override
   Widget build(BuildContext context) {
-    // Determine the pattern based on searchTypes
-    RegExp combinedPattern;
-    if (searchTypes != null && searchTypes!.isNotEmpty) {
+    // Determine the pattern based on snifferTypes
+    RegExp? combinedPattern;
+    if (snifferTypes.isNotEmpty) {
       combinedPattern = RegExp(
-        searchTypes!.map((e) => _patternByType[e]!.pattern).join('|'),
+        snifferTypes.map((e) => e.pattern?.pattern).join('|'),
         caseSensitive: false,
       );
-    } else {
-      combinedPattern = _patternByType[SearchType.custom]!;
     }
+
     // Split the text and process each part
     final spans = text._customSplitMapJoin<InlineSpan>(
       pattern: combinedPattern,
-      patternByType: _patternByType,
+      snifferTypes: snifferTypes,
       onMatch: (text, index, count, type) {
         // If a custom matchBuilder is provided, use it
         if (matchBuilder != null) {
@@ -270,29 +294,35 @@ class TextSniffer<T> extends StatelessWidget {
         }
         return TextSpan(
           text: text,
-          style: _matcheStyles[type],
+          style: type.style,
           recognizer: TapGestureRecognizer()..onTap = () => onTapMatchFn(matchEntries, text, type, index),
         );
       },
       onNonMatch: (nonMatch) {
         return TextSpan(
           text: nonMatch,
-          style: textStyle,
+          style: textStyle ?? const TextStyle(color: Colors.black),
         );
       },
     );
 
     return RichText(
-      textAlign: textAlign ?? TextAlign.start,
+      textAlign: textAlign,
+      locale: locale,
+      selectionColor: selectionColor,
+      selectionRegistrar: selectionRegistrar,
+      softWrap: softWrap,
+      strutStyle: strutStyle,
+      textDirection: textDirection,
+      textHeightBehavior: textHeightBehavior,
+      textScaler: textScaler,
+      textWidthBasis: textWidthBasis,
       maxLines: maxLines,
-      overflow: overflow ?? TextOverflow.ellipsis,
-      text: TextSpan(children: spans),
+      overflow: overflow,
+      text: TextSpan(children: spans, semanticsLabel: semanticsLabel),
     );
   }
 }
-
-typedef _MatchCallback<T> = T Function(String text, int index, int matchCount, SearchType type);
-typedef _NonMatchCallback<T> = T Function(String nonMatch);
 
 /// Extension on the [String] class that provides a custom `splitMapJoin`
 /// implementation.
@@ -301,61 +331,69 @@ typedef _NonMatchCallback<T> = T Function(String nonMatch);
 /// processing the matched and non-matched parts, and then re-joining them into
 /// a list of type [T].
 extension on String {
-  /// Splits the string using the provided [pattern], processes each matching
-  /// and non-matching part, and returns a list of [T].
+  /// Internal method that handles the text splitting and processing logic.
   ///
-  /// - [onMatch]: A callback that processes each match and returns a value of type [T].
-  /// - [onNonMatch]: A callback that processes each non-matching part and returns a value of type [T].
+  /// Parameters:
+  /// - [pattern]: The regular expression pattern to match against
+  /// - [onMatch]: Callback function for processing matched segments
+  /// - [onNonMatch]: Callback function for processing non-matched segments
+  /// - [patternByType]: Map of sniffer types to their corresponding patterns
   ///
-  /// Example:
-  /// ```dart
-  /// final result = "This [is] a [test]".customSplitMapJoin<TextSpan>(
-  ///   pattern: RegExp(r'\[(.*?)\]'),
-  ///   onMatch: (match, index) => TextSpan(text: match[1]!),
-  ///   onNonMatch: (nonMatch) => TextSpan(text: nonMatch),
-  /// );
-  /// ```
-  /// In this example, the string is split based on words inside square brackets, and
-  /// each match is processed differently from the non-matching parts.
+  /// Returns a list of processed segments of type [T].
   List<T> _customSplitMapJoin<T>({
-    required RegExp pattern,
+    required RegExp? pattern,
     required _MatchCallback<T> onMatch,
     required _NonMatchCallback<T> onNonMatch,
-    required Map<SearchType, RegExp> patternByType,
+    required List<SnifferType>? snifferTypes,
   }) {
     List<T> result = [];
     int currentIndex = 0;
     int matchIndex = 0;
-    final matchCount = pattern.allMatches(this).length;
 
-    for (var match in pattern.allMatches(this)) {
-      if (match.start > currentIndex) {
-        result.add(onNonMatch(substring(currentIndex, match.start)));
-      }
+    final inlineSpansCache = InlineSpanCache<T>();
 
-      String matchedText = match[0] ?? '';
+    if (pattern != null) {
+      final regex = RegexCache.get(pattern.pattern);
+      final matches = regex.allMatches(this);
 
-      for (var i = 0; i <= match.groupCount; i++) {
-        final group = match.group(i);
+      final matchCount = matches.length;
 
-        if (group != null && i == 1) {
-          matchedText = group;
-          break;
+      for (var j = 0; j < matches.length; j++) {
+        final match = matches.toList()[j];
+        if (match.start > currentIndex) {
+          final nonMatchText = substring(currentIndex, match.start);
+          result.add(inlineSpansCache.getSpan(nonMatchText, onNonMatch));
+          // result.add(onNonMatch(substring(currentIndex, match.start)));
         }
-      }
 
-      SearchType? type;
-      for (var entry in patternByType.entries) {
-        if (entry.value.matchAsPrefix(matchedText) != null) {
-          type = entry.key;
-          break;
+        String matchedText = match[0] ?? '';
+
+        SnifferType? type;
+        if (snifferTypes != null && snifferTypes.isNotEmpty) {
+          for (var entry in snifferTypes) {
+            if (entry.pattern?.matchAsPrefix(matchedText) != null) {
+              type = entry;
+              break;
+            }
+          }
         }
-      }
-      type ??= SearchType.custom;
 
-      result.add(onMatch(matchedText, matchIndex, matchCount, type));
-      currentIndex = match.end;
-      matchIndex++;
+        if (type is! LinkSnifferType && type is! EmailSnifferType) {
+          for (int i = 1; i <= match.groupCount; i++) {
+            if (match[i] != null && match[i]!.isNotEmpty) {
+              matchedText = match[i]!;
+              break;
+            }
+          }
+        }
+        // result.add(onMatch(matchedText, matchIndex, matchCount, type!));
+        result.add(inlineSpansCache.getSpan(
+          matchedText,
+          (p0) => onMatch(p0, matchIndex, matchCount, type!),
+        ));
+        currentIndex = match.end;
+        matchIndex++;
+      }
     }
 
     if (currentIndex < length) {
@@ -366,30 +404,35 @@ extension on String {
   }
 }
 
-/// Enum to define search types with their associated regular expressions.
-enum SearchType {
-  /// Matches phone numbers.
-  phone,
+/// Cache for regular expressions to avoid creating new instances on each call.
+class RegexCache {
+  static final Map<String, RegExp> _cache = {};
 
-  /// Matches email addresses.
-  email,
-
-  /// Matches URLs.
-  link,
-
-  /// Matches using a custom regular expression.
-  custom,
+  /// Get a cached regular expression for the given pattern.
+  /// If the pattern is not already in the cache, it creates a new RegExp instance.
+  static RegExp get(String pattern) {
+    return _cache.putIfAbsent(pattern, () => RegExp(pattern));
+  }
 }
 
-class MatchesTextStyle {
-  final TextStyle? phoneTextStyle;
-  final TextStyle? emailTextStyle;
-  final TextStyle? linkTextStyle;
-  final TextStyle? customTextStyle;
-  MatchesTextStyle({
-    this.phoneTextStyle,
-    this.emailTextStyle,
-    this.linkTextStyle,
-    this.customTextStyle,
-  });
+class InlineSpanCache<T> {
+  final _cache = <String, T>{};
+
+  T getSpan(String text, T Function(String) builder) {
+    if (_cache.containsKey(text)) {
+      return _cache[text]!;
+    }
+    final span = builder(text);
+    _cache[text] = span;
+    return span;
+  }
+}
+
+class NoMatcheEntryFoundException implements Exception {
+  final String message;
+
+  NoMatcheEntryFoundException(this.message);
+
+  @override
+  String toString() => '\x1B[31mNoMatchedEntriesException(message: $message)\x1B[0m';
 }
