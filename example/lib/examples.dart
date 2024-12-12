@@ -8,7 +8,8 @@ class CustomSnifferType extends SnifferType {
   RegExp get pattern => RegExp(r'\[(.*?)\]');
 
   @override
-  TextStyle? get style => const TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold);
+  TextStyle? get style =>
+      const TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold);
 
   @override
   String toString() => 'custom';
@@ -29,7 +30,8 @@ class IpAddressSnifferType extends SnifferType {
       );
 
   @override
-  TextStyle? get style => const TextStyle(color: Colors.orange, fontStyle: FontStyle.italic);
+  TextStyle? get style =>
+      const TextStyle(color: Colors.orange, fontStyle: FontStyle.italic);
 
   @override
   String toString() => 'ip_address';
@@ -41,7 +43,8 @@ class HashtagSnifferType extends SnifferType {
   RegExp get pattern => RegExp(r'\B#\w\w+');
 
   @override
-  TextStyle? get style => const TextStyle(color: Colors.purple, fontWeight: FontWeight.bold);
+  TextStyle? get style =>
+      const TextStyle(color: Colors.purple, fontWeight: FontWeight.bold);
 
   @override
   String toString() => 'hashtag';
@@ -80,7 +83,8 @@ class TextSnifferExamples extends StatelessWidget {
               children: [
                 title("Basic Example"),
                 TextSniffer(
-                  text: "Contact us at support@example.com or \nvisit https://example.com/product?name=iPhone",
+                  text:
+                      "Contact us at support@example.com or \nvisit https://example.com/product?name=iPhone",
                   snifferTypes: [
                     EmailSnifferType(),
                     LinkSnifferType(),
@@ -97,7 +101,8 @@ class TextSnifferExamples extends StatelessWidget {
               children: [
                 title("Custom Patterns"),
                 TextSniffer(
-                  text: "Check out [Flutter] and [Google]!\nCheck out #Flutter and #Google! IP addresses: 192.168.0.1, 192.168.0.124",
+                  text:
+                      "Check out [Flutter] and [Google]!\nCheck out #Flutter and #Google! IP addresses: 192.168.0.1, 192.168.0.124",
                   snifferTypes: [
                     CustomSnifferType(),
                     HashtagSnifferType(),
@@ -128,7 +133,8 @@ class TextSnifferExamples extends StatelessWidget {
                       padding: const EdgeInsets.only(left: 4.0, right: 4.0),
                       child: Tooltip(
                         decoration: BoxDecoration(color: Colors.grey[500]),
-                        richMessage: WidgetSpan(child: Text(text, style: type.style)),
+                        richMessage:
+                            WidgetSpan(child: Text(text, style: type.style)),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [

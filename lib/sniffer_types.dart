@@ -25,8 +25,11 @@ abstract class SnifferType {
 class EmailSnifferType extends SnifferType {
   EmailSnifferType({TextStyle? style, RegExp? pattern})
       : super(
-          style: style ?? const TextStyle(color: Colors.redAccent, fontStyle: FontStyle.italic),
-          pattern: pattern ?? RegExp(r'(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'),
+          style: style ??
+              const TextStyle(
+                  color: Colors.redAccent, fontStyle: FontStyle.italic),
+          pattern: pattern ??
+              RegExp(r'(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'),
         );
 
   @override
@@ -38,9 +41,12 @@ class EmailSnifferType extends SnifferType {
 class LinkSnifferType extends SnifferType {
   LinkSnifferType({TextStyle? style, RegExp? pattern})
       : super(
-          style: style ?? const TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
-          pattern:
-              pattern ?? RegExp(r'((http|https|ftp|ftps|sftp|file|mailto|telnet|ssh|ws|wss|irc|rtsp|rtmp|sip|sms|tel):\/\/)?(www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/[^\s]*)?(\?[a-zA-Z0-9&=%_-]+)?'),
+          style: style ??
+              const TextStyle(
+                  color: Colors.blue, decoration: TextDecoration.underline),
+          pattern: pattern ??
+              RegExp(
+                  r'((http|https|ftp|ftps|sftp|file|mailto|telnet|ssh|ws|wss|irc|rtsp|rtmp|sip|sms|tel):\/\/)?(www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/[^\s]*)?(\?[a-zA-Z0-9&=%_-]+)?'),
         );
 
   @override

@@ -252,10 +252,10 @@ class TextSniffer<T> extends StatelessWidget {
   void onTapMatchFn(List<T> matchEntries, String match, SnifferType type, int index) {
     try {
       if (index < 0 || index >= matchEntries.length) {
-        throw NoMatcheEntryFoundException("No match entry found at index $index. Type: $type");
+        throw NoMatchEntryFoundException("No match entry found at index $index. Type: $type");
       }
       onTapMatch?.call(matchEntries[index], match, type, index, null);
-    } on NoMatcheEntryFoundException catch (e) {
+    } on NoMatchEntryFoundException catch (e) {
       if (kDebugMode) {
         print(e);
       }
@@ -426,10 +426,10 @@ class InlineSpanCache<T> {
   }
 }
 
-class NoMatcheEntryFoundException implements Exception {
+class NoMatchEntryFoundException implements Exception {
   final String message;
 
-  NoMatcheEntryFoundException(this.message);
+  NoMatchEntryFoundException(this.message);
 
   @override
   String toString() => '\x1B[31mNoMatchedEntriesException(message: $message)\x1B[0m';

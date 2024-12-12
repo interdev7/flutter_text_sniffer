@@ -30,7 +30,7 @@
 * Improved documentation with detailed examples for `onTapMatch` and styling matches.
 * Enhanced README with usage instructions and examples for better developer experience.
 
-## [4.4.0]
+## [4.4.4]
 
 * Added the ability to create your own sniffer types.
-* Updated documentation 
+* Updated documentation
