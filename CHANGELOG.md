@@ -26,7 +26,6 @@
 
 ## [3.4.0]
 
-* Added a test to ensure the reliability and correctness of `TextSniffer`.
 * Improved documentation with detailed examples for `onTapMatch` and styling matches.
 * Enhanced README with usage instructions and examples for better developer experience.
 
