@@ -197,4 +197,4 @@ We welcome contributions! To contribute to `TextSniffer`, please follow these st
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
+This project is licensed under the BSD-3-Clause License. See the [LICENSE](LICENSE) file for more details.
