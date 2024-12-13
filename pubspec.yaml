@@ -1,6 +1,6 @@
 name: flutter_text_sniffer
 description: "A widget that detects specific patterns within a text and makes them interactive."
-version: 4.4.3+3
+version: 4.4.3+4
 homepage: https://github.com/interdev7/flutter_text_sniffer
 
 environment:
@@ -10,6 +10,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+screenshots:
+  - description: The text sniffer package logo.
+    path: screenshots/logo.jpeg
 
 dev_dependencies:
   flutter_test:
