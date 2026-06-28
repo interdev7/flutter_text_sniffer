@@ -1,7 +1,6 @@
 // ignore_for_file: public_member_api_docs, sort_constructors_first
 library flutter_text_sniffer;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -25,11 +24,15 @@ typedef _NonMatchCallback<T> = T Function(String nonMatch);
 /// A callback type for handling tap events on matched text segments.
 ///
 /// Parameters:
-/// - [match]: The matched text segment
-/// - [matchText]: The matched text segment
-/// - [type]: The type of the match (phone, email, link, or custom)
-/// - [index]: The index of the match in the original text
-/// - [error]: An optional error object that might occur during the tap event
+/// - [match]: The entry from `matchEntries` associated with this match, or
+///   `null` when no entry is provided for it. `matchEntries` is optional, so
+///   this is frequently `null` — rely on [matchText]/[type]/[index] instead.
+/// - [matchText]: The actual text that was matched and tapped.
+/// - [type]: The type of the match (phone, email, link, or custom).
+/// - [index]: The zero-based position of the match across **all** matches in
+///   the text, regardless of type (not per-type). Use [type] to disambiguate.
+/// - [error]: Reserved for reporting errors during a tap. Currently always
+///   `null`; kept for forward compatibility.
 typedef OnTapMatch<T> = void Function(T? match, String matchText, SnifferType type, int index, Object? error);
 
 /// A callback type for building custom widgets for matched text segments.
@@ -250,17 +253,13 @@ class TextSniffer<T> extends StatelessWidget {
   /// Calls the [onTapMatch] callback with the appropriate parameters and handles any errors
   /// that might occur during the callback execution.
   void onTapMatchFn(List<T> matchEntries, String match, SnifferType type, int index) {
-    try {
-      if (index < 0 || index >= matchEntries.length) {
-        throw NoMatchEntryFoundException("No match entry found at index $index. Type: $type");
-      }
-      onTapMatch?.call(matchEntries[index], match, type, index, null);
-    } on NoMatchEntryFoundException catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
-      onTapMatch?.call(null, match, type, index, e);
-    }
+    // [matchEntries] is optional and per-match: an entry may simply not exist
+    // for the tapped match (no list provided, or the match has no associated
+    // entry — common when mixing types where only some need entries). In that
+    // case we deliver the tap with a null entry rather than treating it as an
+    // error, so [match]/[type]/[index] are always usable.
+    final entry = (index >= 0 && index < matchEntries.length) ? matchEntries[index] : null;
+    onTapMatch?.call(entry, match, type, index, null);
   }
 
   @override
@@ -268,10 +267,13 @@ class TextSniffer<T> extends StatelessWidget {
     // Determine the pattern based on snifferTypes
     RegExp? combinedPattern;
     if (snifferTypes.isNotEmpty) {
-      combinedPattern = RegExp(
-        snifferTypes.map((e) => e.pattern?.pattern).join('|'),
-        caseSensitive: false,
-      );
+      final patterns = snifferTypes
+          .map((e) => e.pattern?.pattern)
+          .where((p) => p != null && p.isNotEmpty)
+          .join('|');
+      if (patterns.isNotEmpty) {
+        combinedPattern = RegExp(patterns, caseSensitive: false);
+      }
     }
 
     // Split the text and process each part
@@ -351,13 +353,13 @@ extension on String {
     final inlineSpansCache = InlineSpanCache<T>();
 
     if (pattern != null) {
-      final regex = RegexCache.get(pattern.pattern);
-      final matches = regex.allMatches(this);
+      final regex = RegexCache.get(pattern);
+      final matchList = regex.allMatches(this).toList();
 
-      final matchCount = matches.length;
+      final matchCount = matchList.length;
 
-      for (var j = 0; j < matches.length; j++) {
-        final match = matches.toList()[j];
+      for (var j = 0; j < matchList.length; j++) {
+        final match = matchList[j];
         if (match.start > currentIndex) {
           final nonMatchText = substring(currentIndex, match.start);
           result.add(inlineSpansCache.getSpan(nonMatchText, onNonMatch));
@@ -384,11 +386,10 @@ extension on String {
             }
           }
         }
-        // result.add(onMatch(matchedText, matchIndex, matchCount, type!));
-        result.add(inlineSpansCache.getSpan(
-          matchedText,
-          (p0) => onMatch(p0, matchIndex, matchCount, type!),
-        ));
+        // Matches must NOT be cached by text: identical matched strings can
+        // appear multiple times with different indices, and a cached span would
+        // carry the wrong index into onTapMatch (wrong matchEntries lookup).
+        result.add(onMatch(matchedText, matchIndex, matchCount, type!));
         currentIndex = match.end;
         matchIndex++;
       }
@@ -406,10 +407,19 @@ extension on String {
 class RegexCache {
   static final Map<String, RegExp> _cache = {};
 
-  /// Get a cached regular expression for the given pattern.
-  /// If the pattern is not already in the cache, it creates a new RegExp instance.
-  static RegExp get(String pattern) {
-    return _cache.putIfAbsent(pattern, () => RegExp(pattern));
+  /// Get a cached regular expression equivalent to [pattern].
+  ///
+  /// The cache key includes the relevant flags (case sensitivity, multiline,
+  /// etc.) so that two patterns with the same source but different flags do not
+  /// collide. This preserves [pattern]'s flags (e.g. `caseSensitive: false`)
+  /// instead of recreating it with the RegExp defaults.
+  static RegExp get(RegExp pattern) {
+    final key = '${pattern.isCaseSensitive ? 's' : 'i'}'
+        '${pattern.isMultiLine ? 'm' : ''}'
+        '${pattern.isDotAll ? 'd' : ''}'
+        '${pattern.isUnicode ? 'u' : ''}'
+        ':${pattern.pattern}';
+    return _cache.putIfAbsent(key, () => pattern);
   }
 }
 
@@ -424,13 +434,4 @@ class InlineSpanCache<T> {
     _cache[text] = span;
     return span;
   }
-}
-
-class NoMatchEntryFoundException implements Exception {
-  final String message;
-
-  NoMatchEntryFoundException(this.message);
-
-  @override
-  String toString() => '\x1B[31mNoMatchedEntriesException(message: $message)\x1B[0m';
 }

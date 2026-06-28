@@ -1,3 +1,17 @@
+## [5.0.0]
+
+* **Breaking:** removed `NoMatchEntryFoundException`. Tapping a match no longer
+  throws when `matchEntries` is empty or shorter than the number of matches —
+  `onTapMatch` is now always called with `match: null` and `error: null` in that
+  case. `matchEntries` is fully optional and per-match.
+* Fixed: case-insensitive matching is now preserved (regex flags were lost via
+  the internal regex cache, breaking uppercase emails/links).
+* Fixed: tap callbacks no longer reuse a wrong `index` when the same text is
+  matched more than once (matched spans are no longer cached by text).
+* Fixed: `snifferTypes` with a `null`/empty pattern no longer produce an empty
+  regex alternative that matched every position.
+* Perf: matches are materialized once instead of rebuilding the list per match.
+
 ## [1.0.0]
 
 * Created package
