@@ -11,6 +11,8 @@
 - [Usage](#usage)
 - [Custom Builder](#custom-builder)
 - [Defining Custom sniffers](#defining-custom-patterns)
+- [Handling Taps & matchEntries](#handling-taps--matchentries)
+- [Large Texts (books, articles)](#large-texts-books-articles)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -184,6 +186,58 @@ TextSniffer(
 ```
 
 <img width="200" alt="image" src="https://github.com/user-attachments/assets/d5a97bff-a10e-4098-aeca-ad8e5d438c1a">
+
+## Handling Taps & matchEntries
+
+`onTapMatch` is called whenever a matched segment is tapped:
+
+```dart
+onTapMatch: (entry, matchText, type, index, error) { ... }
+```
+
+- **`matchText`**, **`type`** and **`index`** are always provided — `index` is the
+  zero-based position across **all** matches in the text (not per type), so use
+  `type` to tell match kinds apart.
+- **`entry`** is the item from `matchEntries` for this match, or `null` if you did
+  not supply one. `matchEntries` is fully **optional** and **per-match**: provide
+  it only when you need extra data (e.g. a URL behind a `[label]`). Mixing types
+  where only some need entries is fine — taps on the others simply get `entry: null`.
+- **`error`** is reserved for future error reporting and is currently always `null`.
+
+```dart
+// Optional: attach data to specific matches.
+TextSniffer<String>(
+  text: "Visit [Flutter] or [Google]",
+  snifferTypes: [CustomSnifferType()],
+  matchEntries: const ['https://flutter.dev', 'https://google.com'],
+  onTapMatch: (url, matchText, type, index, error) {
+    // url == 'https://google.com' when "[Google]" is tapped
+  },
+)
+```
+
+## Large Texts (books, articles)
+
+`TextSniffer` renders a single `RichText`, and `RichText` lays out its **entire**
+span tree eagerly. So do **not** put a whole book into one `TextSniffer` — split
+the text into chunks (e.g. paragraphs) and render them lazily with
+`ListView.builder`. Each chunk gets its own `TextSniffer`, so layout and pattern
+matching only run for what is on screen:
+
+```dart
+ListView.builder(
+  itemCount: paragraphs.length,
+  itemBuilder: (context, index) => TextSniffer(
+    text: paragraphs[index],
+    snifferTypes: [EmailSnifferType(), LinkSnifferType()],
+    onTapMatch: (entry, matchText, type, i, error) { /* ... */ },
+  ),
+)
+```
+
+Within each `TextSniffer`, parsing (running the regex) happens only when `text`
+or `snifferTypes` change — not on every rebuild — so scrolling stays smooth.
+See `example/lib/long_text_example.dart` for a runnable demo.
 
 ## Contributing
 

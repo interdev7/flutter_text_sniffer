@@ -6,21 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_text_sniffer/sniffer_types.dart';
 
-/// A callback type for processing matched text segments.
-///
-/// Parameters:
-/// - [text]: The matched text segment
-/// - [index]: The index of the match in the original text
-/// - [matchCount]: The total number of matches found
-/// - [type]: The type of the match (phone, email, link, or custom)
-typedef _MatchCallback<T> = T Function(String text, int index, int matchCount, SnifferType type);
-
-/// A callback type for processing non-matched text segments.
-///
-/// Parameters:
-/// - [nonMatch]: The non-matched text segment
-typedef _NonMatchCallback<T> = T Function(String nonMatch);
-
 /// A callback type for handling tap events on matched text segments.
 ///
 /// Parameters:
@@ -49,7 +34,7 @@ typedef MatchBuilder<T> = Widget Function(String text, int index, SnifferType ty
 /// [TextSniffer] allows you to define custom patterns within the text using regular
 /// expressions, apply styles to the detected parts, and handle user interactions
 /// with these parts, such as taps on links or specific words.
-class TextSniffer<T> extends StatelessWidget {
+class TextSniffer<T> extends StatefulWidget {
   /// The full text to be displayed.
   final String text;
 
@@ -248,26 +233,67 @@ class TextSniffer<T> extends StatelessWidget {
     this.matchEntries = const [],
   });
 
-  /// Internal method to handle tap events on matched text segments.
+  @override
+  State<TextSniffer<T>> createState() => _TextSnifferState<T>();
+}
+
+class _TextSnifferState<T> extends State<TextSniffer<T>> {
+  /// The result of parsing [TextSniffer.text] against the sniffer patterns.
   ///
-  /// Calls the [onTapMatch] callback with the appropriate parameters and handles any errors
-  /// that might occur during the callback execution.
-  void onTapMatchFn(List<T> matchEntries, String match, SnifferType type, int index) {
-    // [matchEntries] is optional and per-match: an entry may simply not exist
-    // for the tapped match (no list provided, or the match has no associated
-    // entry — common when mixing types where only some need entries). In that
-    // case we deliver the tap with a null entry rather than treating it as an
-    // error, so [match]/[type]/[index] are always usable.
-    final entry = (index >= 0 && index < matchEntries.length) ? matchEntries[index] : null;
-    onTapMatch?.call(entry, match, type, index, null);
+  /// This is the expensive part (running the regex over potentially large text)
+  /// and is recomputed only when [TextSniffer.text] or the patterns change —
+  /// not on every rebuild.
+  List<_Segment> _segments = const [];
+
+  /// One reusable tap recognizer per matched segment, indexed by match index.
+  ///
+  /// Recognizers hold resources and must be disposed. They are created lazily,
+  /// reused across rebuilds, and their `onTap` reads [widget] at tap time, so
+  /// changing [TextSniffer.onTapMatch]/[TextSniffer.matchEntries] does not
+  /// require re-parsing or recreating them.
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  /// Signature of the current patterns, used to detect when re-parsing is needed.
+  String _patternSignature = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _parse();
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Determine the pattern based on snifferTypes
+  void didUpdateWidget(covariant TextSniffer<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text || _signatureOf(oldWidget.snifferTypes) != _patternSignature) {
+      _parse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    super.dispose();
+  }
+
+  void _disposeRecognizers() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  String _signatureOf(List<SnifferType> types) =>
+      types.map((e) => '${e.runtimeType}:${e.pattern?.pattern}').join('|');
+
+  /// Builds (or rebuilds) the combined pattern and parses the text into segments.
+  void _parse() {
+    _disposeRecognizers();
+    _patternSignature = _signatureOf(widget.snifferTypes);
+
     RegExp? combinedPattern;
-    if (snifferTypes.isNotEmpty) {
-      final patterns = snifferTypes
+    if (widget.snifferTypes.isNotEmpty) {
+      final patterns = widget.snifferTypes
           .map((e) => e.pattern?.pattern)
           .where((p) => p != null && p.isNotEmpty)
           .join('|');
@@ -276,131 +302,154 @@ class TextSniffer<T> extends StatelessWidget {
       }
     }
 
-    // Split the text and process each part
-    final spans = text._customSplitMapJoin<InlineSpan>(
-      pattern: combinedPattern,
-      snifferTypes: snifferTypes,
-      onMatch: (text, index, count, type) {
-        // If a custom matchBuilder is provided, use it
-        if (matchBuilder != null) {
-          final entry = matchEntries.isNotEmpty ? matchEntries[index] : null;
-          return WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: GestureDetector(
-              onTap: () => onTapMatchFn(matchEntries, text, type, index),
-              child: matchBuilder!(text, index, type, entry),
-            ),
-          );
-        }
-        return TextSpan(
-          text: text,
-          style: type.style,
-          recognizer: TapGestureRecognizer()..onTap = () => onTapMatchFn(matchEntries, text, type, index),
-        );
-      },
-      onNonMatch: (nonMatch) {
-        return TextSpan(
-          text: nonMatch,
-          style: textStyle ?? const TextStyle(color: Colors.black),
-        );
-      },
-    );
+    _segments = _parseSegments(widget.text, combinedPattern, widget.snifferTypes);
+  }
+
+  /// Handles a tap on a matched segment, reading the current widget so that the
+  /// latest [TextSniffer.onTapMatch]/[TextSniffer.matchEntries] are always used.
+  ///
+  /// [matchEntries] is optional and per-match: an entry may simply not exist for
+  /// the tapped match. In that case the callback receives a null entry and a
+  /// null error, so [matchText]/[type]/[index] are always usable.
+  void _handleTap(String matchText, SnifferType type, int index) {
+    final entries = widget.matchEntries;
+    final entry = (index >= 0 && index < entries.length) ? entries[index] : null;
+    widget.onTapMatch?.call(entry, matchText, type, index, null);
+  }
+
+  /// Returns a reusable recognizer for the match at [index], creating it once.
+  TapGestureRecognizer _recognizerFor(String matchText, SnifferType type, int index) {
+    while (_recognizers.length <= index) {
+      final i = _recognizers.length;
+      _recognizers.add(TapGestureRecognizer());
+      // Bind once; the closure reads the current widget at tap time.
+      final segment = _segments.firstWhere((s) => s.isMatch && s.matchIndex == i);
+      _recognizers[i].onTap = () => _handleTap(segment.text, segment.type!, i);
+    }
+    return _recognizers[index];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final spans = <InlineSpan>[];
+    for (final segment in _segments) {
+      if (!segment.isMatch) {
+        spans.add(TextSpan(
+          text: segment.text,
+          style: widget.textStyle ?? DefaultTextStyle.of(context).style,
+        ));
+        continue;
+      }
+
+      final type = segment.type!;
+      final index = segment.matchIndex;
+
+      if (widget.matchBuilder != null) {
+        final entry = (index >= 0 && index < widget.matchEntries.length) ? widget.matchEntries[index] : null;
+        spans.add(WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: GestureDetector(
+            onTap: () => _handleTap(segment.text, type, index),
+            child: widget.matchBuilder!(segment.text, index, type, entry),
+          ),
+        ));
+        continue;
+      }
+
+      spans.add(TextSpan(
+        text: segment.text,
+        style: type.style,
+        recognizer: _recognizerFor(segment.text, type, index),
+      ));
+    }
 
     return RichText(
-      textAlign: textAlign,
-      locale: locale,
-      selectionColor: selectionColor,
-      selectionRegistrar: selectionRegistrar,
-      softWrap: softWrap,
-      strutStyle: strutStyle,
-      textDirection: textDirection,
-      textHeightBehavior: textHeightBehavior,
-      textScaler: textScaler,
-      textWidthBasis: textWidthBasis,
-      maxLines: maxLines,
-      overflow: overflow,
-      text: TextSpan(children: spans, semanticsLabel: semanticsLabel),
+      textAlign: widget.textAlign,
+      locale: widget.locale,
+      selectionColor: widget.selectionColor,
+      selectionRegistrar: widget.selectionRegistrar,
+      softWrap: widget.softWrap,
+      strutStyle: widget.strutStyle,
+      textDirection: widget.textDirection,
+      textHeightBehavior: widget.textHeightBehavior,
+      textScaler: widget.textScaler,
+      textWidthBasis: widget.textWidthBasis,
+      maxLines: widget.maxLines,
+      overflow: widget.overflow,
+      text: TextSpan(children: spans, semanticsLabel: widget.semanticsLabel),
     );
   }
 }
 
-/// Extension on the [String] class that provides a custom `splitMapJoin`
-/// implementation.
+/// A single piece of the parsed text: either a matched or a non-matched run.
+class _Segment {
+  final String text;
+  final bool isMatch;
+
+  /// Zero-based position across all matches; valid only when [isMatch] is true.
+  final int matchIndex;
+
+  /// The sniffer type that produced this match; non-null only when [isMatch].
+  final SnifferType? type;
+
+  const _Segment.match(this.text, this.matchIndex, this.type) : isMatch = true;
+  const _Segment.nonMatch(this.text)
+      : isMatch = false,
+        matchIndex = -1,
+        type = null;
+}
+
+/// Splits [text] into matched/non-matched segments using [pattern].
 ///
-/// This extension allows splitting a string based on a regular expression pattern,
-/// processing the matched and non-matched parts, and then re-joining them into
-/// a list of type [T].
-extension on String {
-  /// Internal method that handles the text splitting and processing logic.
-  ///
-  /// Parameters:
-  /// - [pattern]: The regular expression pattern to match against
-  /// - [onMatch]: Callback function for processing matched segments
-  /// - [onNonMatch]: Callback function for processing non-matched segments
-  /// - [patternByType]: Map of sniffer types to their corresponding patterns
-  ///
-  /// Returns a list of processed segments of type [T].
-  List<T> _customSplitMapJoin<T>({
-    required RegExp? pattern,
-    required _MatchCallback<T> onMatch,
-    required _NonMatchCallback<T> onNonMatch,
-    required List<SnifferType>? snifferTypes,
-  }) {
-    List<T> result = [];
-    int currentIndex = 0;
-    int matchIndex = 0;
+/// This is the only place the regex runs over the full text, so it is the work
+/// that callers cache (see [_TextSnifferState._parse]).
+List<_Segment> _parseSegments(String text, RegExp? pattern, List<SnifferType> snifferTypes) {
+  final result = <_Segment>[];
+  if (pattern == null) {
+    if (text.isNotEmpty) result.add(_Segment.nonMatch(text));
+    return result;
+  }
 
-    final inlineSpansCache = InlineSpanCache<T>();
+  final regex = RegexCache.get(pattern);
+  final matchList = regex.allMatches(text).toList();
 
-    if (pattern != null) {
-      final regex = RegexCache.get(pattern);
-      final matchList = regex.allMatches(this).toList();
+  int currentIndex = 0;
+  int matchIndex = 0;
 
-      final matchCount = matchList.length;
+  for (final match in matchList) {
+    if (match.start > currentIndex) {
+      result.add(_Segment.nonMatch(text.substring(currentIndex, match.start)));
+    }
 
-      for (var j = 0; j < matchList.length; j++) {
-        final match = matchList[j];
-        if (match.start > currentIndex) {
-          final nonMatchText = substring(currentIndex, match.start);
-          result.add(inlineSpansCache.getSpan(nonMatchText, onNonMatch));
-          // result.add(onNonMatch(substring(currentIndex, match.start)));
-        }
+    String matchedText = match[0] ?? '';
 
-        String matchedText = match[0] ?? '';
-
-        SnifferType? type;
-        if (snifferTypes != null && snifferTypes.isNotEmpty) {
-          for (var entry in snifferTypes) {
-            if (entry.pattern?.matchAsPrefix(matchedText) != null) {
-              type = entry;
-              break;
-            }
-          }
-        }
-
-        if (type is! LinkSnifferType && type is! EmailSnifferType) {
-          for (int i = 1; i <= match.groupCount; i++) {
-            if (match[i] != null && match[i]!.isNotEmpty) {
-              matchedText = match[i]!;
-              break;
-            }
-          }
-        }
-        // Matches must NOT be cached by text: identical matched strings can
-        // appear multiple times with different indices, and a cached span would
-        // carry the wrong index into onTapMatch (wrong matchEntries lookup).
-        result.add(onMatch(matchedText, matchIndex, matchCount, type!));
-        currentIndex = match.end;
-        matchIndex++;
+    SnifferType? type;
+    for (final entry in snifferTypes) {
+      if (entry.pattern?.matchAsPrefix(matchedText) != null) {
+        type = entry;
+        break;
       }
     }
 
-    if (currentIndex < length) {
-      result.add(onNonMatch(substring(currentIndex)));
+    if (type is! LinkSnifferType && type is! EmailSnifferType) {
+      for (int i = 1; i <= match.groupCount; i++) {
+        if (match[i] != null && match[i]!.isNotEmpty) {
+          matchedText = match[i]!;
+          break;
+        }
+      }
     }
 
-    return result;
+    result.add(_Segment.match(matchedText, matchIndex, type!));
+    currentIndex = match.end;
+    matchIndex++;
   }
+
+  if (currentIndex < text.length) {
+    result.add(_Segment.nonMatch(text.substring(currentIndex)));
+  }
+
+  return result;
 }
 
 /// Cache for regular expressions to avoid creating new instances on each call.
@@ -420,18 +469,5 @@ class RegexCache {
         '${pattern.isUnicode ? 'u' : ''}'
         ':${pattern.pattern}';
     return _cache.putIfAbsent(key, () => pattern);
-  }
-}
-
-class InlineSpanCache<T> {
-  final _cache = <String, T>{};
-
-  T getSpan(String text, T Function(String) builder) {
-    if (_cache.containsKey(text)) {
-      return _cache[text]!;
-    }
-    final span = builder(text);
-    _cache[text] = span;
-    return span;
   }
 }

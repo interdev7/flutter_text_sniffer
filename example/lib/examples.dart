@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_text_sniffer/flutter_text_sniffer.dart';
 import 'package:flutter_text_sniffer/sniffer_types.dart';
+import 'package:flutter_text_sniffer_example/long_text_example.dart';
 
 // Custom sniffer. For example: [Example] => word in brackets => Example
 class CustomSnifferType extends SnifferType {
@@ -71,6 +72,15 @@ class TextSnifferExamples extends StatelessWidget {
       appBar: AppBar(
         centerTitle: true,
         title: title("Text sniffer examples"),
+        actions: [
+          IconButton(
+            tooltip: 'Long text (book) example',
+            icon: const Icon(Icons.menu_book),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const LongTextExample()),
+            ),
+          ),
+        ],
       ),
       body: Container(
         padding: const EdgeInsets.all(8),
@@ -91,7 +101,7 @@ class TextSnifferExamples extends StatelessWidget {
                   ],
                   onTapMatch: (match, matchText, type, index, error) {
                     if (error == null) {
-                      print('Tapped on: $matchText');
+                      debugPrint('Tapped on: $matchText');
                     }
                   },
                 )
@@ -114,7 +124,7 @@ class TextSnifferExamples extends StatelessWidget {
                   ],
                   onTapMatch: (entry, matchText, type, index, error) {
                     if (error == null) {
-                      print('Tapped on: $matchText');
+                      debugPrint('Tapped on: $matchText');
                     }
                   },
                 )
@@ -159,7 +169,7 @@ class TextSnifferExamples extends StatelessWidget {
                   ],
                   onTapMatch: (match, matchText, type, index, error) {
                     if (error == null) {
-                      print('Tapped on: $matchText');
+                      debugPrint('Tapped on: $matchText');
                     }
                   },
                 )

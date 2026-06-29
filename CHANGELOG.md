@@ -1,3 +1,13 @@
+## [5.0.1]
+
+* Docs: documented `onTapMatch`/`matchEntries` behavior (entry is optional and
+  per-match; `index` is global across all matches; `error` is reserved).
+* Docs: added a "Large Texts (books, articles)" guide — chunk long text with
+  `ListView.builder` instead of one big `TextSniffer`.
+* Example: added `long_text_example.dart` (lazy `ListView.builder` demo) plus a
+  toolbar button to open it; switched example logging to `debugPrint`.
+* Tests: added widget tests covering parsing, tap handling and re-parsing.
+
 ## [5.0.0]
 
 * **Breaking:** removed `NoMatchEntryFoundException`. Tapping a match no longer
@@ -11,22 +21,22 @@
 * Fixed: `snifferTypes` with a `null`/empty pattern no longer produce an empty
   regex alternative that matched every position.
 * Perf: matches are materialized once instead of rebuilding the list per match.
+* Fixed: `TapGestureRecognizer`s created per match are now disposed (previously
+  leaked on every rebuild). `TextSniffer` is now a `StatefulWidget`.
+* Perf: text is parsed (regex run) only when `text` or `snifferTypes` change,
+  not on every rebuild — important for large texts.
+* Non-matching text now defaults to `DefaultTextStyle` (theme/dark-mode aware)
+  instead of hard-coded black.
 
-## [1.0.0]
+## [4.4.4]
 
-* Created package
+* Added the ability to create your own sniffer types.
+* Updated documentation
 
-## [1.1.0]
+## [3.4.0]
 
-* Fixed `maxLines`
-
-## [1.2.0]
-
-* fixed: `matchEntry` now is nullable because `matchEntries` can be empty
-
-## [2.2.0]
-
-* fixed: `maxLines` and regular expression for multiple groups
+* Improved documentation with detailed examples for `onTapMatch` and styling matches.
+* Enhanced README with usage instructions and examples for better developer experience.
 
 ## [3.3.0]
 
@@ -38,12 +48,18 @@
 
 * Optimized `onTapMatch` callback handling for better interaction with matched text.
 
-## [3.4.0]
+## [2.2.0]
 
-* Improved documentation with detailed examples for `onTapMatch` and styling matches.
-* Enhanced README with usage instructions and examples for better developer experience.
+* fixed: `maxLines` and regular expression for multiple groups
 
-## [4.4.4]
+## [1.2.0]
 
-* Added the ability to create your own sniffer types.
-* Updated documentation
+* fixed: `matchEntry` now is nullable because `matchEntries` can be empty
+
+## [1.1.0]
+
+* Fixed `maxLines`
+
+## [1.0.0]
+
+* Created package
