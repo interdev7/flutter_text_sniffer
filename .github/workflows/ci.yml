@@ -49,7 +49,7 @@ jobs:
           FILE=coverage/lcov.info
           TOTAL=$(grep -c '^DA:' "$FILE")
           HIT=$(awk -F, '/^DA:/ && $2+0 > 0' "$FILE" | wc -l | tr -d ' ')
-          PCT=$(awk -v h="$HIT" -v t="$TOTAL" 'BEGIN{printf "%.1f", t>0 ? 100*h/t : 0}')
+          PCT=$(awk -v h="$HIT" -v t="$TOTAL" 'BEGIN{printf "%.1f", (t > 0 ? 100 * h / t : 0)}')
           echo "Line coverage: $HIT/$TOTAL ($PCT%)"
           if [ "$HIT" -ne "$TOTAL" ]; then
             echo "::error::Coverage is $PCT% ($HIT/$TOTAL); 100% required."
