@@ -1,67 +1,102 @@
-# Creates a GitHub Release when a version tag is pushed.
-# Publishing to pub.dev is handled separately by ci.yml on the
-# `release: [published]` event that this workflow triggers.
+# Auto-release on version bump.
 #
-# Usage:
-#   1. Bump `version:` in pubspec.yaml and add a matching CHANGELOG.md section.
-#   2. git tag v5.0.1 && git push origin v5.0.1
+# On every push to main this reads `version:` from pubspec.yaml. If no matching
+# git tag `v<version>` exists yet, it verifies the package, then creates the
+# tag, a GitHub Release (notes taken from CHANGELOG.md) and publishes to pub.dev.
 #
-# The tag version must match pubspec.yaml, otherwise the job fails.
+# To cut a release: bump `version:` in pubspec.yaml, add a matching CHANGELOG
+# section, and merge to main. No manual tagging required.
+#
+# Publishing happens in this same run on purpose: a tag/release created with the
+# built-in GITHUB_TOKEN does NOT trigger other workflows, so a separate
+# publish-on-release job would never fire.
 
 name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
 
+# contents: write -> push tag + create release; id-token: write -> pub.dev OIDC
 permissions:
   contents: write
+  id-token: write
 
 jobs:
-  create-release:
-    name: Create GitHub Release
+  release:
+    name: Tag, Release & Publish
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need full history + tags to detect existing releases
 
-      - name: Resolve version
-        id: version
+      - name: Read version
+        id: v
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          PUBSPEC=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//')
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Tag version:     $TAG"
-          echo "pubspec version: $PUBSPEC"
-          if [ "$TAG" != "$PUBSPEC" ]; then
-            echo "::error::Tag ($TAG) does not match pubspec.yaml version ($PUBSPEC)"
-            exit 1
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag v$VERSION already exists — nothing to release."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "New version detected: v$VERSION"
           fi
 
-      - name: Extract changelog section
-        id: changelog
+      - name: Setup Flutter
+        if: steps.v.outputs.exists == 'false'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        if: steps.v.outputs.exists == 'false'
+        run: flutter pub get
+
+      - name: Verify (format, analyze, test)
+        if: steps.v.outputs.exists == 'false'
         run: |
-          VERSION="${{ steps.version.outputs.tag }}"
-          # Grab the block between this version's heading and the next "## " heading.
+          dart format --output=none --set-exit-if-changed .
+          flutter analyze --no-fatal-infos
+          flutter test
+
+      - name: Extract changelog section
+        if: steps.v.outputs.exists == 'false'
+        id: notes
+        run: |
+          VERSION="${{ steps.v.outputs.version }}"
           NOTES=$(awk -v ver="$VERSION" '
             $0 ~ "^## \\[" ver "\\]" {capture=1; next}
             capture && /^## / {exit}
             capture {print}
           ' CHANGELOG.md)
-          if [ -z "$NOTES" ]; then
-            NOTES="Release $VERSION"
-          fi
+          [ -z "$NOTES" ] && NOTES="Release $VERSION"
           {
-            echo "notes<<EOF"
+            echo "body<<EOF"
             echo "$NOTES"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Create Release
+      - name: Create and push tag
+        if: steps.v.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.v.outputs.version }}"
+          git push origin "v${{ steps.v.outputs.version }}"
+
+      - name: Create GitHub Release
+        if: steps.v.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: v${{ steps.version.outputs.tag }}
-          body: ${{ steps.changelog.outputs.notes }}
+          tag_name: v${{ steps.v.outputs.version }}
+          name: v${{ steps.v.outputs.version }}
+          body: ${{ steps.notes.outputs.body }}
+
+      - name: Publish to pub.dev
+        if: steps.v.outputs.exists == 'false'
+        run: dart pub publish --force

@@ -1,8 +1,9 @@
-# CI/CD pipeline for flutter_text_sniffer
-# - Runs analysis & tests on every push/PR
-# - Publishes to pub.dev when a GitHub Release is created
+# CI pipeline for flutter_text_sniffer.
+# Runs analysis, formatting, tests (100% coverage) and a publish dry-run on
+# every push/PR. Actual publishing to pub.dev is handled by release.yml, which
+# auto-tags and publishes when the pubspec version is bumped on main.
 
-name: CI/CD
+name: CI
 
 on:
   push:
@@ -10,14 +11,8 @@ on:
   pull_request:
     branches: [main, master]
 
-  # Trigger on GitHub Release creation (for pub.dev publish)
-  release:
-    types: [published]
-
-# Required for pub.dev OIDC token authentication
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   # ──────────────────────────────────────────────
@@ -91,28 +86,3 @@ jobs:
 
       - name: Dry-run publish
         run: dart pub publish --dry-run
-
-  # ──────────────────────────────────────────────
-  # Job 3: Publish to pub.dev (only on Release)
-  # ──────────────────────────────────────────────
-  publish:
-    name: Publish to pub.dev
-    runs-on: ubuntu-latest
-    needs: [analyze-and-test, dry-run]
-    if: github.event_name == 'release'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Publish to pub.dev
-        run: dart pub publish --force

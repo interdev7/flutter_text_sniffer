@@ -1,3 +1,15 @@
+## [5.0.2]
+
+* Fixed: changing `snifferTypes` without changing `text` now correctly
+  re-parses. Previously the widget compared the old sniffer signature against
+  itself, so pattern/type changes on an existing `TextSniffer` were ignored
+  until the text also changed.
+* Tests: reached 100% line coverage (added coverage for `matchBuilder`,
+  `snifferTypes` re-parsing, `LinkSnifferType`, `SnifferType.toString`, and the
+  deprecated `textScaleFactor` getter).
+* Chore: added CI (analyze, format, tests with enforced 100% coverage,
+  publish-on-release) and switched the license to MIT.
+
 ## [5.0.1]
 
 * Docs: documented `onTapMatch`/`matchEntries` behavior (entry is optional and
