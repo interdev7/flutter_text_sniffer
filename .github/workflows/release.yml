@@ -1,15 +1,14 @@
-# Auto-release on version bump.
+# Auto-tag on version bump.
 #
 # On every push to main this reads `version:` from pubspec.yaml. If no matching
-# git tag `v<version>` exists yet, it verifies the package, then creates the
-# tag, a GitHub Release (notes taken from CHANGELOG.md) and publishes to pub.dev.
+# git tag `v<version>` exists yet, it verifies the package, then creates the tag
+# and a GitHub Release (notes taken from CHANGELOG.md).
+#
+# Publishing to pub.dev is NOT done here — run `dart pub publish` locally, since
+# it requires interactive Google OAuth that can't run in CI.
 #
 # To cut a release: bump `version:` in pubspec.yaml, add a matching CHANGELOG
 # section, and merge to main. No manual tagging required.
-#
-# Publishing happens in this same run on purpose: a tag/release created with the
-# built-in GITHUB_TOKEN does NOT trigger other workflows, so a separate
-# publish-on-release job would never fire.
 
 name: Release
 
@@ -17,10 +16,9 @@ on:
   push:
     branches: [main]
 
-# contents: write -> push tag + create release; id-token: write -> pub.dev OIDC
+# contents: write -> push tag + create release
 permissions:
   contents: write
-  id-token: write
 
 jobs:
   release:
@@ -96,7 +94,3 @@ jobs:
           tag_name: v${{ steps.v.outputs.version }}
           name: v${{ steps.v.outputs.version }}
           body: ${{ steps.notes.outputs.body }}
-
-      - name: Publish to pub.dev
-        if: steps.v.outputs.exists == 'false'
-        run: dart pub publish --force
