@@ -1,5 +1,10 @@
 # TextSniffer
 
+[![pub package](https://img.shields.io/pub/v/flutter_text_sniffer.svg)](https://pub.dev/packages/flutter_text_sniffer)
+[![CI/CD](https://github.com/interdev7/flutter_text_sniffer/actions/workflows/ci.yml/badge.svg)](https://github.com/interdev7/flutter_text_sniffer/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/interdev7/flutter_text_sniffer/branch/main/graph/badge.svg)](https://codecov.io/gh/interdev7/flutter_text_sniffer)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 ![text_sniffer](https://github.com/user-attachments/assets/f9a6264e-863a-486f-91e4-fa9d2292f0a9)
 
 `TextSniffer` is a powerful Flutter widget designed to detect and interact with specific text patterns. It allows developers to define custom patterns using regular expressions, apply unique styles to detected text, and handle user interactions such as taps on links or specific words.
@@ -251,4 +256,4 @@ We welcome contributions! To contribute to `TextSniffer`, please follow these st
 
 ## License
 
-This project is licensed under the BSD-3-Clause License. See the [LICENSE](LICENSE) file for more details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.

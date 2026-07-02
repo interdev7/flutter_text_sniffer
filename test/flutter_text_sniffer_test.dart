@@ -132,7 +132,8 @@ void main() {
       expect(error, isNull);
     });
 
-    testWidgets('duplicate matched text keeps distinct indices', (tester) async {
+    testWidgets('duplicate matched text keeps distinct indices',
+        (tester) async {
       final indices = <int>[];
 
       final spans = await _spansOf(
@@ -203,6 +204,87 @@ void main() {
       final texts = _collectTextSpans(richText.text).map((s) => s.text);
       expect(texts, contains('c@d.com'));
       expect(texts, contains('changed '));
+    });
+
+    testWidgets('re-parses when snifferTypes pattern changes', (tester) async {
+      const text = 'ping a@b.com [tag]';
+
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+          body: TextSniffer(text: text, snifferTypes: <SnifferType>[]),
+        ),
+      ));
+
+      // Same text, but the pattern signature changes -> must re-parse.
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer(text: text, snifferTypes: [_BracketType()]),
+        ),
+      ));
+
+      final richText = tester.widget<RichText>(find.byType(RichText));
+      final texts = _collectTextSpans(richText.text).map((s) => s.text);
+      expect(texts, contains('tag'));
+    });
+  });
+
+  group('matchBuilder', () {
+    testWidgets('builds a WidgetSpan per match and delivers tap',
+        (tester) async {
+      int? tappedIndex;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer<String>(
+            text: 'See [A] and [B]',
+            snifferTypes: [_BracketType()],
+            matchEntries: const ['entryA', 'entryB'],
+            onTapMatch: (entry, matchText, type, index, error) {
+              tappedIndex = index;
+            },
+            matchBuilder: (matchText, index, type, entry) =>
+                Text('$matchText:$entry', key: ValueKey('m$index')),
+          ),
+        ),
+      ));
+
+      expect(find.byKey(const ValueKey('m0')), findsOneWidget);
+      expect(find.text('A:entryA'), findsOneWidget);
+      expect(find.text('B:entryB'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('m1')));
+      expect(tappedIndex, 1);
+    });
+  });
+
+  group('built-in sniffer types', () {
+    testWidgets('LinkSnifferType matches urls with default style/pattern',
+        (tester) async {
+      final spans = await _spansOf(
+        tester,
+        TextSniffer(
+          text: 'visit https://example.com now',
+          snifferTypes: [LinkSnifferType()],
+        ),
+      );
+
+      expect(spans.any((s) => s.text == 'https://example.com'), isTrue);
+    });
+
+    test('types expose readable names via toString', () {
+      expect(EmailSnifferType().toString(), 'email');
+      expect(LinkSnifferType().toString(), 'link');
+    });
+
+    testWidgets('exposes deprecated textScaleFactor from textScaler',
+        (tester) async {
+      const sniffer = TextSniffer(
+        text: 'x',
+        snifferTypes: <SnifferType>[],
+        textScaler: TextScaler.linear(1.5),
+      );
+      // ignore: deprecated_member_use_from_same_package
+      expect(sniffer.textScaleFactor, 1.5);
     });
   });
 }

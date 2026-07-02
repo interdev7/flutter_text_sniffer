@@ -18,7 +18,8 @@ import 'package:flutter_text_sniffer/sniffer_types.dart';
 ///   the text, regardless of type (not per-type). Use [type] to disambiguate.
 /// - [error]: Reserved for reporting errors during a tap. Currently always
 ///   `null`; kept for forward compatibility.
-typedef OnTapMatch<T> = void Function(T? match, String matchText, SnifferType type, int index, Object? error);
+typedef OnTapMatch<T> = void Function(
+    T? match, String matchText, SnifferType type, int index, Object? error);
 
 /// A callback type for building custom widgets for matched text segments.
 ///
@@ -27,7 +28,8 @@ typedef OnTapMatch<T> = void Function(T? match, String matchText, SnifferType ty
 /// - [index]: The index of the match in the original text
 /// - [type]: The type of the match (phone, email, link, or custom)
 /// - [matchEntry]: The corresponding entry from [matchEntries] if available
-typedef MatchBuilder<T> = Widget Function(String text, int index, SnifferType type, T? matchEntry);
+typedef MatchBuilder<T> = Widget Function(
+    String text, int index, SnifferType type, T? matchEntry);
 
 /// A widget that detects specific patterns within a text and makes them interactive.
 ///
@@ -265,7 +267,8 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
   @override
   void didUpdateWidget(covariant TextSniffer<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text || _signatureOf(oldWidget.snifferTypes) != _patternSignature) {
+    if (oldWidget.text != widget.text ||
+        _signatureOf(widget.snifferTypes) != _patternSignature) {
       _parse();
     }
   }
@@ -302,7 +305,8 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
       }
     }
 
-    _segments = _parseSegments(widget.text, combinedPattern, widget.snifferTypes);
+    _segments =
+        _parseSegments(widget.text, combinedPattern, widget.snifferTypes);
   }
 
   /// Handles a tap on a matched segment, reading the current widget so that the
@@ -313,17 +317,20 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
   /// null error, so [matchText]/[type]/[index] are always usable.
   void _handleTap(String matchText, SnifferType type, int index) {
     final entries = widget.matchEntries;
-    final entry = (index >= 0 && index < entries.length) ? entries[index] : null;
+    final entry =
+        (index >= 0 && index < entries.length) ? entries[index] : null;
     widget.onTapMatch?.call(entry, matchText, type, index, null);
   }
 
   /// Returns a reusable recognizer for the match at [index], creating it once.
-  TapGestureRecognizer _recognizerFor(String matchText, SnifferType type, int index) {
+  TapGestureRecognizer _recognizerFor(
+      String matchText, SnifferType type, int index) {
     while (_recognizers.length <= index) {
       final i = _recognizers.length;
       _recognizers.add(TapGestureRecognizer());
       // Bind once; the closure reads the current widget at tap time.
-      final segment = _segments.firstWhere((s) => s.isMatch && s.matchIndex == i);
+      final segment =
+          _segments.firstWhere((s) => s.isMatch && s.matchIndex == i);
       _recognizers[i].onTap = () => _handleTap(segment.text, segment.type!, i);
     }
     return _recognizers[index];
@@ -345,7 +352,9 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
       final index = segment.matchIndex;
 
       if (widget.matchBuilder != null) {
-        final entry = (index >= 0 && index < widget.matchEntries.length) ? widget.matchEntries[index] : null;
+        final entry = (index >= 0 && index < widget.matchEntries.length)
+            ? widget.matchEntries[index]
+            : null;
         spans.add(WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: GestureDetector(
@@ -403,7 +412,8 @@ class _Segment {
 ///
 /// This is the only place the regex runs over the full text, so it is the work
 /// that callers cache (see [_TextSnifferState._parse]).
-List<_Segment> _parseSegments(String text, RegExp? pattern, List<SnifferType> snifferTypes) {
+List<_Segment> _parseSegments(
+    String text, RegExp? pattern, List<SnifferType> snifferTypes) {
   final result = <_Segment>[];
   if (pattern == null) {
     if (text.isNotEmpty) result.add(_Segment.nonMatch(text));

@@ -1,0 +1,67 @@
+# Creates a GitHub Release when a version tag is pushed.
+# Publishing to pub.dev is handled separately by ci.yml on the
+# `release: [published]` event that this workflow triggers.
+#
+# Usage:
+#   1. Bump `version:` in pubspec.yaml and add a matching CHANGELOG.md section.
+#   2. git tag v5.0.1 && git push origin v5.0.1
+#
+# The tag version must match pubspec.yaml, otherwise the job fails.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PUBSPEC=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//')
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Tag version:     $TAG"
+          echo "pubspec version: $PUBSPEC"
+          if [ "$TAG" != "$PUBSPEC" ]; then
+            echo "::error::Tag ($TAG) does not match pubspec.yaml version ($PUBSPEC)"
+            exit 1
+          fi
+
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.tag }}"
+          # Grab the block between this version's heading and the next "## " heading.
+          NOTES=$(awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" {capture=1; next}
+            capture && /^## / {exit}
+            capture {print}
+          ' CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="Release $VERSION"
+          fi
+          {
+            echo "notes<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: v${{ steps.version.outputs.tag }}
+          body: ${{ steps.changelog.outputs.notes }}
