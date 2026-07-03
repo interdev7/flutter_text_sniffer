@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_text_sniffer/flutter_text_sniffer.dart';
 import 'package:flutter_text_sniffer/sniffer_types.dart';
+import 'package:flutter_text_sniffer_example/book_excerpt_example.dart';
 import 'package:flutter_text_sniffer_example/long_text_example.dart';
 
 // Custom sniffer. For example: [Example] => word in brackets => Example
@@ -73,6 +74,13 @@ class TextSnifferExamples extends StatelessWidget {
         centerTitle: true,
         title: title("Text sniffer examples"),
         actions: [
+          IconButton(
+            tooltip: 'Annotated book reader example',
+            icon: const Icon(Icons.auto_stories),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BookExcerptExample()),
+            ),
+          ),
           IconButton(
             tooltip: 'Long text (book) example',
             icon: const Icon(Icons.menu_book),
