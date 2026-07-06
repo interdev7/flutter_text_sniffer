@@ -17,6 +17,8 @@ migrate_working_dir/
 .idea/
 
 .vscode/
+.fvm/
+.fvmrc
 coverage/
 
 # Flutter/Dart/Pub related
