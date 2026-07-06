@@ -74,19 +74,21 @@ class BookExcerptExample extends StatelessWidget {
               style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
             ),
             const Divider(height: 32),
-            TextSniffer(
+            TextSniffer<String>(
               text: _excerpt,
               textStyle: const TextStyle(
                 fontSize: 18,
                 height: 1.6,
                 color: Colors.black87,
               ),
-              snifferTypes: [
+              sniffers: [
                 CharacterSnifferType(),
                 GlossarySnifferType(),
               ],
-              onTapMatch: (entry, matchText, type, index, error) {
-                final annotation = _glossary[matchText];
+              // Look the annotation up by the matched word instead of keeping a
+              // positional list in sync with the prose — far more robust.
+              entryResolver: (matchText, type, index) => _glossary[matchText],
+              onTapMatch: (annotation, matchText, type, index, error) {
                 if (annotation == null) return;
                 showModalBottomSheet(
                   context: context,
@@ -116,7 +118,7 @@ class BookExcerptExample extends StatelessWidget {
 }
 
 /// Highlights character names in blue and bold.
-class CharacterSnifferType extends SnifferType {
+class CharacterSnifferType extends Sniffer {
   @override
   RegExp get pattern => RegExp(r'\bWhite Rabbit\b|\bAlice\b|\bRabbit\b');
 
@@ -131,7 +133,7 @@ class CharacterSnifferType extends SnifferType {
 }
 
 /// Highlights glossary terms with a dotted-looking underline color.
-class GlossarySnifferType extends SnifferType {
+class GlossarySnifferType extends Sniffer {
   @override
   RegExp get pattern => RegExp(r'\bdaisy-chain\b|\bwaistcoat-pocket\b');
 

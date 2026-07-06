@@ -5,7 +5,7 @@ import 'package:flutter_text_sniffer_example/book_excerpt_example.dart';
 import 'package:flutter_text_sniffer_example/long_text_example.dart';
 
 // Custom sniffer. For example: [Example] => word in brackets => Example
-class CustomSnifferType extends SnifferType {
+class CustomSnifferType extends Sniffer {
   @override
   RegExp get pattern => RegExp(r'\[(.*?)\]');
 
@@ -18,7 +18,7 @@ class CustomSnifferType extends SnifferType {
 }
 
 // IP address sniffer
-class IpAddressSnifferType extends SnifferType {
+class IpAddressSnifferType extends Sniffer {
   @override
   RegExp get pattern => RegExp(r'\b' // Start of word (word borders)
       r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)' // 1 octet
@@ -39,14 +39,15 @@ class IpAddressSnifferType extends SnifferType {
   String toString() => 'ip_address';
 }
 
-// Hashtag sniffer
-class HashtagSnifferType extends SnifferType {
-  @override
-  RegExp get pattern => RegExp(r'\B#\w\w+');
-
-  @override
-  TextStyle? get style =>
-      const TextStyle(color: Colors.purple, fontWeight: FontWeight.bold);
+/// Matches hashtags such as `#flutter` or `#dart_lang`.
+class HashtagSnifferType extends Sniffer {
+  HashtagSnifferType({TextStyle? style, RegExp? pattern})
+      : super(
+          style: style ??
+              const TextStyle(
+                  color: Colors.purple, fontWeight: FontWeight.bold),
+          pattern: pattern ?? RegExp(r'(?<![\w#])#\w{2,}'),
+        );
 
   @override
   String toString() => 'hashtag';
@@ -103,13 +104,13 @@ class TextSnifferExamples extends StatelessWidget {
                 TextSniffer(
                   text:
                       "Contact us at support@example.com or \nvisit https://example.com/product?name=iPhone",
-                  snifferTypes: [
-                    EmailSnifferType(),
-                    LinkSnifferType(),
+                  sniffers: [
+                    EmailSniffer(),
+                    LinkSniffer(),
                   ],
-                  onTapMatch: (match, matchText, type, index, error) {
+                  onTapMatch: (match, text, type, index, error) {
                     if (error == null) {
-                      debugPrint('Tapped on: $matchText');
+                      debugPrint('Tapped on: $text');
                     }
                   },
                 )
@@ -121,7 +122,7 @@ class TextSnifferExamples extends StatelessWidget {
                 TextSniffer(
                   text:
                       "Check out [Flutter] and [Google]!\nCheck out #Flutter and #Google! IP addresses: 192.168.0.1, 192.168.0.124",
-                  snifferTypes: [
+                  sniffers: [
                     CustomSnifferType(),
                     HashtagSnifferType(),
                     IpAddressSnifferType(),
@@ -143,7 +144,7 @@ class TextSnifferExamples extends StatelessWidget {
                 title("Custom builder"),
                 TextSniffer(
                   text: "Long press to [Flutter] or [Google] for show tooltip",
-                  snifferTypes: [
+                  sniffers: [
                     CustomSnifferType(),
                   ],
                   matchBuilder: (text, index, type, matchEntry) {

@@ -37,9 +37,9 @@ class LongTextExample extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: TextSniffer(
             text: paragraphs[index],
-            snifferTypes: [
-              EmailSnifferType(),
-              LinkSnifferType(),
+            sniffers: [
+              EmailSniffer(),
+              LinkSniffer(),
             ],
             onTapMatch: (entry, matchText, type, idx, error) {
               ScaffoldMessenger.of(context).showSnackBar(

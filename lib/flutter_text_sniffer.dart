@@ -19,7 +19,7 @@ import 'package:flutter_text_sniffer/sniffer_types.dart';
 /// - [error]: Reserved for reporting errors during a tap. Currently always
 ///   `null`; kept for forward compatibility.
 typedef OnTapMatch<T> = void Function(
-    T? match, String matchText, SnifferType type, int index, Object? error);
+    T? match, String matchText, Sniffer type, int index, Object? error);
 
 /// A callback type for building custom widgets for matched text segments.
 ///
@@ -29,7 +29,20 @@ typedef OnTapMatch<T> = void Function(
 /// - [type]: The type of the match (phone, email, link, or custom)
 /// - [matchEntry]: The corresponding entry from [matchEntries] if available
 typedef MatchBuilder<T> = Widget Function(
-    String text, int index, SnifferType type, T? matchEntry);
+    String text, int index, Sniffer type, T? matchEntry);
+
+/// A callback that resolves the entry associated with a match.
+///
+/// Prefer this over [TextSniffer.matchEntries] when your data is keyed by the
+/// matched text (or its type) rather than by position: it is robust to the
+/// order and count of matches changing as the text changes.
+///
+/// Parameters:
+/// - [matchText]: The text that was matched.
+/// - [type]: The [Sniffer] that produced the match.
+/// - [index]: The zero-based position of the match across all matches.
+typedef EntryResolver<T> = T? Function(
+    String matchText, Sniffer type, int index);
 
 /// A widget that detects specific patterns within a text and makes them interactive.
 ///
@@ -137,7 +150,7 @@ class TextSniffer<T> extends StatefulWidget {
 
   ///
   ///```dart
-  /// class CustomSnifferType extends SnifferType {
+  /// class CustomSnifferType extends Sniffer {
   ///   @override
   ///   RegExp get pattern => RegExp(r'\[(.*?)\]');
   ///
@@ -151,16 +164,16 @@ class TextSniffer<T> extends StatefulWidget {
   /// TextSniffer(
   ///   text: "[Email] example@domain.com. Visit http://example.com. ABC",
   ///   maxLines: 2,
-  ///   snifferTypes: const [
-  ///     EmailSnifferType(),
-  ///     LinkSnifferType(),
+  ///   sniffers: const [
+  ///     EmailSniffer(),
+  ///     LinkSniffer(),
   ///     CustomSnifferType(), // Use it
   ///   ],
   /// )
   ///```
   ///
 
-  final List<SnifferType> snifferTypes;
+  final List<Sniffer> sniffers;
 
   /// The list of entries corresponding to each match in the text.
   ///
@@ -170,6 +183,22 @@ class TextSniffer<T> extends StatefulWidget {
   ///
   /// The length of this list should match the number of detected matches.
   final List<T> matchEntries;
+
+  /// An optional callback that resolves the entry for each match.
+  ///
+  /// When provided, it takes precedence over [matchEntries] and is used to look
+  /// up the value passed to [onTapMatch] and [matchBuilder]. Prefer this when
+  /// your entries are keyed by matched text/type instead of by position, which
+  /// is far more robust than keeping a positional list in sync with the text.
+  ///
+  /// ```dart
+  /// TextSniffer<String>(
+  ///   text: "Ask Alice or the Rabbit",
+  ///   sniffers: [CharacterSnifferType()],
+  ///   entryResolver: (matchText, type, index) => glossary[matchText],
+  /// )
+  /// ```
+  final EntryResolver<T>? entryResolver;
 
   /// A callback function that is triggered when a matching part of the text is tapped.
   ///
@@ -215,7 +244,7 @@ class TextSniffer<T> extends StatefulWidget {
   const TextSniffer({
     super.key,
     required this.text,
-    this.snifferTypes = const [],
+    this.sniffers = const [],
     this.textStyle,
     this.semanticsLabel,
     this.locale,
@@ -233,6 +262,7 @@ class TextSniffer<T> extends StatefulWidget {
     this.textWidthBasis = TextWidthBasis.parent,
     this.matchBuilder,
     this.matchEntries = const [],
+    this.entryResolver,
   });
 
   @override
@@ -268,7 +298,7 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
   void didUpdateWidget(covariant TextSniffer<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.text != widget.text ||
-        _signatureOf(widget.snifferTypes) != _patternSignature) {
+        _signatureOf(widget.sniffers) != _patternSignature) {
       _parse();
     }
   }
@@ -286,27 +316,14 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
     _recognizers.clear();
   }
 
-  String _signatureOf(List<SnifferType> types) =>
+  String _signatureOf(List<Sniffer> types) =>
       types.map((e) => '${e.runtimeType}:${e.pattern?.pattern}').join('|');
 
-  /// Builds (or rebuilds) the combined pattern and parses the text into segments.
+  /// Parses the text into matched/non-matched segments.
   void _parse() {
     _disposeRecognizers();
-    _patternSignature = _signatureOf(widget.snifferTypes);
-
-    RegExp? combinedPattern;
-    if (widget.snifferTypes.isNotEmpty) {
-      final patterns = widget.snifferTypes
-          .map((e) => e.pattern?.pattern)
-          .where((p) => p != null && p.isNotEmpty)
-          .join('|');
-      if (patterns.isNotEmpty) {
-        combinedPattern = RegExp(patterns, caseSensitive: false);
-      }
-    }
-
-    _segments =
-        _parseSegments(widget.text, combinedPattern, widget.snifferTypes);
+    _patternSignature = _signatureOf(widget.sniffers);
+    _segments = _parseSegments(widget.text, widget.sniffers);
   }
 
   /// Handles a tap on a matched segment, reading the current widget so that the
@@ -315,16 +332,24 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
   /// [matchEntries] is optional and per-match: an entry may simply not exist for
   /// the tapped match. In that case the callback receives a null entry and a
   /// null error, so [matchText]/[type]/[index] are always usable.
-  void _handleTap(String matchText, SnifferType type, int index) {
+  void _handleTap(String matchText, Sniffer type, int index) {
+    widget.onTapMatch
+        ?.call(_entryFor(matchText, type, index), matchText, type, index, null);
+  }
+
+  /// Resolves the entry for a match, preferring [TextSniffer.entryResolver]
+  /// (keyed by the matched text/type) and falling back to positional
+  /// [TextSniffer.matchEntries].
+  T? _entryFor(String matchText, Sniffer type, int index) {
+    final resolver = widget.entryResolver;
+    if (resolver != null) return resolver(matchText, type, index);
     final entries = widget.matchEntries;
-    final entry =
-        (index >= 0 && index < entries.length) ? entries[index] : null;
-    widget.onTapMatch?.call(entry, matchText, type, index, null);
+    return (index >= 0 && index < entries.length) ? entries[index] : null;
   }
 
   /// Returns a reusable recognizer for the match at [index], creating it once.
   TapGestureRecognizer _recognizerFor(
-      String matchText, SnifferType type, int index) {
+      String matchText, Sniffer type, int index) {
     while (_recognizers.length <= index) {
       final i = _recognizers.length;
       _recognizers.add(TapGestureRecognizer());
@@ -352,9 +377,7 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
       final index = segment.matchIndex;
 
       if (widget.matchBuilder != null) {
-        final entry = (index >= 0 && index < widget.matchEntries.length)
-            ? widget.matchEntries[index]
-            : null;
+        final entry = _entryFor(segment.text, type, index);
         spans.add(WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: GestureDetector(
@@ -368,6 +391,8 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
       spans.add(TextSpan(
         text: segment.text,
         style: type.style,
+        // Show a clickable cursor on web/desktop; harmless on touch platforms.
+        mouseCursor: SystemMouseCursors.click,
         recognizer: _recognizerFor(segment.text, type, index),
       ));
     }
@@ -399,7 +424,7 @@ class _Segment {
   final int matchIndex;
 
   /// The sniffer type that produced this match; non-null only when [isMatch].
-  final SnifferType? type;
+  final Sniffer? type;
 
   const _Segment.match(this.text, this.matchIndex, this.type) : isMatch = true;
   const _Segment.nonMatch(this.text)
@@ -408,49 +433,83 @@ class _Segment {
         type = null;
 }
 
-/// Splits [text] into matched/non-matched segments using [pattern].
+/// A single regex hit before overlap resolution: it knows the full span it
+/// occupies in the source text, the text to display, its [Sniffer], and the
+/// priority of that type (its position in the `sniffers` list).
+class _RawMatch {
+  /// Start offset of the full match in the source text (inclusive).
+  final int start;
+
+  /// End offset of the full match in the source text (exclusive).
+  final int end;
+
+  /// The text to display for this match (may be an inner capture group).
+  final String text;
+
+  final Sniffer type;
+
+  /// Lower means higher priority; equals the type's index in `sniffers`.
+  final int priority;
+
+  _RawMatch(this.start, this.end, this.text, this.type, this.priority);
+}
+
+/// Splits [text] into matched/non-matched segments.
 ///
-/// This is the only place the regex runs over the full text, so it is the work
-/// that callers cache (see [_TextSnifferState._parse]).
-List<_Segment> _parseSegments(
-    String text, RegExp? pattern, List<SnifferType> snifferTypes) {
-  final result = <_Segment>[];
-  if (pattern == null) {
-    if (text.isNotEmpty) result.add(_Segment.nonMatch(text));
-    return result;
+/// Each [Sniffer] is matched with its **own** regex (so each pattern keeps
+/// its own flags, e.g. case sensitivity — nothing is forced case-insensitive).
+/// When two matches overlap, the one whose type comes first in [sniffers]
+/// wins, giving callers explicit control over priority. This is the only place
+/// the regexes run over the full text, so it is the work callers cache (see
+/// [_TextSnifferState._parse]).
+List<_Segment> _parseSegments(String text, List<Sniffer> sniffers) {
+  final raw = <_RawMatch>[];
+
+  for (int priority = 0; priority < sniffers.length; priority++) {
+    final type = sniffers[priority];
+    final pattern = type.pattern;
+    if (pattern == null || pattern.pattern.isEmpty) continue;
+
+    final regex = RegexCache.get(pattern);
+    for (final match in regex.allMatches(text)) {
+      if (match.end == match.start) continue; // skip empty matches
+
+      String matchedText = match[0] ?? '';
+      // Links/emails display their whole match; other types can expose an inner
+      // capture group as the display text (e.g. `[word]` -> `word`).
+      if (type is! LinkSniffer && type is! EmailSniffer) {
+        for (int i = 1; i <= match.groupCount; i++) {
+          if (match[i] != null && match[i]!.isNotEmpty) {
+            matchedText = match[i]!;
+            break;
+          }
+        }
+      }
+
+      raw.add(_RawMatch(match.start, match.end, matchedText, type, priority));
+    }
   }
 
-  final regex = RegexCache.get(pattern);
-  final matchList = regex.allMatches(text).toList();
+  // Order by position, then by priority (earlier type wins), then longer first.
+  raw.sort((a, b) {
+    if (a.start != b.start) return a.start - b.start;
+    if (a.priority != b.priority) return a.priority - b.priority;
+    return (b.end - b.start) - (a.end - a.start);
+  });
 
+  final result = <_Segment>[];
   int currentIndex = 0;
   int matchIndex = 0;
 
-  for (final match in matchList) {
+  for (final match in raw) {
+    // Skip anything overlapping a match we already committed to.
+    if (match.start < currentIndex) continue;
+
     if (match.start > currentIndex) {
       result.add(_Segment.nonMatch(text.substring(currentIndex, match.start)));
     }
 
-    String matchedText = match[0] ?? '';
-
-    SnifferType? type;
-    for (final entry in snifferTypes) {
-      if (entry.pattern?.matchAsPrefix(matchedText) != null) {
-        type = entry;
-        break;
-      }
-    }
-
-    if (type is! LinkSnifferType && type is! EmailSnifferType) {
-      for (int i = 1; i <= match.groupCount; i++) {
-        if (match[i] != null && match[i]!.isNotEmpty) {
-          matchedText = match[i]!;
-          break;
-        }
-      }
-    }
-
-    result.add(_Segment.match(matchedText, matchIndex, type!));
+    result.add(_Segment.match(match.text, matchIndex, match.type));
     currentIndex = match.end;
     matchIndex++;
   }

@@ -50,10 +50,10 @@ Here’s a simple example of how to use the `TextSniffer` widget:
 ```dart
 TextSniffer(
    text: "Contact us at support@example.com or visit https://example.com/product?name=iPhone",
-   snifferTypes: [
+   sniffers: [
     // They are built in sniffers
-     EmailSnifferType(), 
-     LinkSnifferType(),
+     EmailSniffer(),
+     LinkSniffer(),
    ],
    onTapMatch: (match, matchText, type, index, error) {
      if (error == null) {
@@ -75,7 +75,7 @@ final images = <String>[
   "assets/google.png",
 ];
 
-class CustomSnifferType extends SnifferType {
+class CustomSnifferType extends Sniffer {
   @override
   RegExp get pattern => RegExp(r'\[(.*?)\]');
 
@@ -89,7 +89,7 @@ class CustomSnifferType extends SnifferType {
 TextSniffer<String>(
   text: "Check out [Flutter] and [Google]!",
   matchEntries: const ['https://flutter.dev', 'https://google.com'],
-  snifferTypes: [
+  sniffers: [
     CustomSnifferType(),
   ],
   onTapMatch: (entry, match, type, index, error) {
@@ -127,7 +127,7 @@ You can define custom patterns using regular expressions. For example, to detect
 
 ```dart
 // Custom sniffer. For example: [Example] => word in brackets => Example
-class CustomSnifferType extends SnifferType {
+class CustomSnifferType extends Sniffer {
   @override
   RegExp get pattern => RegExp(r'\[(.*?)\]');
 
@@ -139,7 +139,7 @@ class CustomSnifferType extends SnifferType {
 }
 
 // IP address sniffer
-class IpAddressSnifferType extends SnifferType {
+class IpAddressSnifferType extends Sniffer {
   @override
   RegExp get pattern => RegExp(r'\b' // Start of word (word borders)
       r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)' // 1 octet
@@ -160,7 +160,7 @@ class IpAddressSnifferType extends SnifferType {
 }
 
 // Hashtag sniffer
-class HashtagSnifferType extends SnifferType {
+class HashtagSnifferType extends Sniffer {
   @override
   RegExp get pattern => RegExp(r'\B#\w\w+');
 
@@ -173,7 +173,7 @@ class HashtagSnifferType extends SnifferType {
 
 TextSniffer(
   text: "Check out [Flutter] and [Google]!\nCheck out #Flutter and #Google! IP addresses: 192.168.0.1, 192.168.0.124",
-  snifferTypes: [
+  sniffers: [
     CustomSnifferType(),
     HashtagSnifferType(),
     IpAddressSnifferType(),
@@ -213,7 +213,7 @@ onTapMatch: (entry, matchText, type, index, error) { ... }
 // Optional: attach data to specific matches.
 TextSniffer<String>(
   text: "Visit [Flutter] or [Google]",
-  snifferTypes: [CustomSnifferType()],
+  sniffers: [CustomSnifferType()],
   matchEntries: const ['https://flutter.dev', 'https://google.com'],
   onTapMatch: (url, matchText, type, index, error) {
     // url == 'https://google.com' when "[Google]" is tapped
@@ -234,14 +234,14 @@ ListView.builder(
   itemCount: paragraphs.length,
   itemBuilder: (context, index) => TextSniffer(
     text: paragraphs[index],
-    snifferTypes: [EmailSnifferType(), LinkSnifferType()],
+    sniffers: [EmailSniffer(), LinkSniffer()],
     onTapMatch: (entry, matchText, type, i, error) { /* ... */ },
   ),
 )
 ```
 
 Within each `TextSniffer`, parsing (running the regex) happens only when `text`
-or `snifferTypes` change — not on every rebuild — so scrolling stays smooth.
+or `sniffers` change — not on every rebuild — so scrolling stays smooth.
 See `example/lib/long_text_example.dart` for a runnable demo.
 
 ## Contributing

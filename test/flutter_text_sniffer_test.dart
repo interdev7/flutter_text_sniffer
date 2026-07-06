@@ -37,7 +37,7 @@ void main() {
         tester,
         TextSniffer(
           text: 'Email me at a@b.com please',
-          snifferTypes: [EmailSnifferType()],
+          sniffers: [EmailSniffer()],
         ),
       );
 
@@ -50,7 +50,7 @@ void main() {
         tester,
         TextSniffer(
           text: 'Write to USER@EXAMPLE.COM now',
-          snifferTypes: [EmailSnifferType()],
+          sniffers: [EmailSniffer()],
         ),
       );
 
@@ -63,12 +63,70 @@ void main() {
         tester,
         const TextSniffer(
           text: 'plain text',
-          snifferTypes: <SnifferType>[],
+          sniffers: <Sniffer>[],
         ),
       );
 
       // No patterns -> the whole text is a single non-matching run.
       expect(spans.map((s) => s.text).toList(), ['plain text']);
+    });
+  });
+
+  group('case sensitivity', () {
+    testWidgets('respects a case-sensitive pattern (no forced lowercasing)',
+        (tester) async {
+      final spans = await _spansOf(
+        tester,
+        TextSniffer(
+          text: 'Alice met alice',
+          sniffers: [_CaseSensitiveType()],
+        ),
+      );
+
+      // Only the capitalized "Alice" matches; lowercase "alice" stays inline.
+      final matched = spans.where((s) => s.recognizer != null).toList();
+      expect(matched.map((s) => s.text), ['Alice']);
+    });
+  });
+
+  group('priority / overlap', () {
+    testWidgets('earlier type in sniffers wins on overlap', (tester) async {
+      // Both types can match "wonder"; the first listed should win.
+      final spans = await _spansOf(
+        tester,
+        TextSniffer(
+          text: 'a wonder b',
+          sniffers: [_WordType('wonder', Colors.red), _AnyWordType()],
+        ),
+      );
+
+      final match = spans.firstWhere((s) => s.text == 'wonder');
+      expect(match.style?.color, Colors.red);
+    });
+  });
+
+  group('entryResolver', () {
+    testWidgets('takes precedence over matchEntries, keyed by matched text',
+        (tester) async {
+      String? tappedEntry;
+
+      final spans = await _spansOf(
+        tester,
+        TextSniffer<String>(
+          text: 'See [A] and [B]',
+          sniffers: [_BracketType()],
+          matchEntries: const ['posA', 'posB'],
+          entryResolver: (matchText, type, index) => 'resolved-$matchText',
+          onTapMatch: (entry, matchText, type, index, error) {
+            tappedEntry = entry;
+          },
+        ),
+      );
+
+      (spans.firstWhere((s) => s.text == 'B').recognizer!
+              as TapGestureRecognizer)
+          .onTap!();
+      expect(tappedEntry, 'resolved-B');
     });
   });
 
@@ -90,7 +148,7 @@ void main() {
         tester,
         TextSniffer<String>(
           text: 'See [A] and [B]',
-          snifferTypes: [_BracketType()],
+          sniffers: [_BracketType()],
           matchEntries: const ['entryA', 'entryB'],
           onTapMatch: (entry, matchText, type, index, error) {
             tappedEntry = entry;
@@ -118,7 +176,7 @@ void main() {
         tester,
         TextSniffer<String>(
           text: 'See [A]',
-          snifferTypes: [_BracketType()],
+          sniffers: [_BracketType()],
           onTapMatch: (e, matchText, type, index, err) {
             entry = e;
             error = err;
@@ -140,7 +198,7 @@ void main() {
         tester,
         TextSniffer<String>(
           text: '[X] then [X]',
-          snifferTypes: [_BracketType()],
+          sniffers: [_BracketType()],
           onTapMatch: (entry, matchText, type, index, error) {
             indices.add(index);
           },
@@ -164,7 +222,7 @@ void main() {
         tester,
         TextSniffer<String>(
           text: '[A] [B] [C]',
-          snifferTypes: [_BracketType()],
+          sniffers: [_BracketType()],
           matchEntries: const ['only-one'],
           onTapMatch: (e, matchText, type, index, err) {
             entry = e;
@@ -186,7 +244,7 @@ void main() {
         home: Scaffold(
           body: TextSniffer(
             text: 'a@b.com',
-            snifferTypes: [EmailSnifferType()],
+            sniffers: [EmailSniffer()],
           ),
         ),
       ));
@@ -195,7 +253,7 @@ void main() {
         home: Scaffold(
           body: TextSniffer(
             text: 'changed c@d.com',
-            snifferTypes: [EmailSnifferType()],
+            sniffers: [EmailSniffer()],
           ),
         ),
       ));
@@ -206,19 +264,19 @@ void main() {
       expect(texts, contains('changed '));
     });
 
-    testWidgets('re-parses when snifferTypes pattern changes', (tester) async {
+    testWidgets('re-parses when sniffers pattern changes', (tester) async {
       const text = 'ping a@b.com [tag]';
 
       await tester.pumpWidget(const MaterialApp(
         home: Scaffold(
-          body: TextSniffer(text: text, snifferTypes: <SnifferType>[]),
+          body: TextSniffer(text: text, sniffers: <Sniffer>[]),
         ),
       ));
 
       // Same text, but the pattern signature changes -> must re-parse.
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
-          body: TextSniffer(text: text, snifferTypes: [_BracketType()]),
+          body: TextSniffer(text: text, sniffers: [_BracketType()]),
         ),
       ));
 
@@ -237,7 +295,7 @@ void main() {
         home: Scaffold(
           body: TextSniffer<String>(
             text: 'See [A] and [B]',
-            snifferTypes: [_BracketType()],
+            sniffers: [_BracketType()],
             matchEntries: const ['entryA', 'entryB'],
             onTapMatch: (entry, matchText, type, index, error) {
               tappedIndex = index;
@@ -258,13 +316,13 @@ void main() {
   });
 
   group('built-in sniffer types', () {
-    testWidgets('LinkSnifferType matches urls with default style/pattern',
+    testWidgets('LinkSniffer matches urls with default style/pattern',
         (tester) async {
       final spans = await _spansOf(
         tester,
         TextSniffer(
           text: 'visit https://example.com now',
-          snifferTypes: [LinkSnifferType()],
+          sniffers: [LinkSniffer()],
         ),
       );
 
@@ -272,15 +330,15 @@ void main() {
     });
 
     test('types expose readable names via toString', () {
-      expect(EmailSnifferType().toString(), 'email');
-      expect(LinkSnifferType().toString(), 'link');
+      expect(EmailSniffer().toString(), 'email');
+      expect(LinkSniffer().toString(), 'link');
     });
 
     testWidgets('exposes deprecated textScaleFactor from textScaler',
         (tester) async {
       const sniffer = TextSniffer(
         text: 'x',
-        snifferTypes: <SnifferType>[],
+        sniffers: <Sniffer>[],
         textScaler: TextScaler.linear(1.5),
       );
       // ignore: deprecated_member_use_from_same_package
@@ -289,8 +347,48 @@ void main() {
   });
 }
 
+/// Case-sensitive sniffer: matches only the capitalized word "Alice".
+class _CaseSensitiveType extends Sniffer {
+  @override
+  RegExp get pattern => RegExp(r'\bAlice\b'); // caseSensitive: true by default
+
+  @override
+  TextStyle? get style => const TextStyle(color: Colors.blue);
+
+  @override
+  String toString() => 'case';
+}
+
+/// Matches a specific [word], styled with [color].
+class _WordType extends Sniffer {
+  _WordType(this.word, this.color);
+  final String word;
+  final Color color;
+
+  @override
+  RegExp get pattern => RegExp('\\b$word\\b');
+
+  @override
+  TextStyle? get style => TextStyle(color: color);
+
+  @override
+  String toString() => 'word:$word';
+}
+
+/// Matches any word, styled in grey.
+class _AnyWordType extends Sniffer {
+  @override
+  RegExp get pattern => RegExp(r'\b\w+\b');
+
+  @override
+  TextStyle? get style => const TextStyle(color: Colors.grey);
+
+  @override
+  String toString() => 'anyword';
+}
+
 /// Test sniffer that matches `[word]` and exposes the inner word as match text.
-class _BracketType extends SnifferType {
+class _BracketType extends Sniffer {
   @override
   RegExp get pattern => RegExp(r'\[(.*?)\]');
 
