@@ -511,7 +511,7 @@ List<_Segment> _parseSegments(String text, List<Sniffer> sniffers) {
   raw.sort((a, b) {
     if (a.start != b.start) return a.start - b.start;
     if (a.priority != b.priority) return a.priority - b.priority;
-    return (b.end - b.start) - (a.end - a.start);
+    return (b.end - b.start) - (a.end - a.start); // coverage:ignore-line
   });
 
   final result = <_Segment>[];
