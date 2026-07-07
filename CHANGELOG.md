@@ -1,3 +1,8 @@
+## [7.0.0]
+
+- **Breaking:** removed `error` parameter from `OnTapMatch` callback.
+- Added `onError` callback to `TextSniffer` to handle errors thrown during `onTapMatch` execution.
+
 ## [6.0.0]
 
 - **Breaking:** renamed `SnifferType` → `Sniffer`, `EmailSnifferType` →

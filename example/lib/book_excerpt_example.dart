@@ -88,7 +88,7 @@ class BookExcerptExample extends StatelessWidget {
               // Look the annotation up by the matched word instead of keeping a
               // positional list in sync with the prose — far more robust.
               entryResolver: (matchText, type, index) => _glossary[matchText],
-              onTapMatch: (annotation, matchText, type, index, error) {
+              onTapMatch: (annotation, matchText, type, index) {
                 if (annotation == null) return;
                 showModalBottomSheet(
                   context: context,

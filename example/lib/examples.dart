@@ -108,10 +108,8 @@ class TextSnifferExamples extends StatelessWidget {
                     EmailSniffer(),
                     LinkSniffer(),
                   ],
-                  onTapMatch: (match, text, type, index, error) {
-                    if (error == null) {
-                      debugPrint('Tapped on: $text');
-                    }
+                  onTapMatch: (match, text, type, index) {
+                    debugPrint('Tapped on: $text');
                   },
                 )
               ],
@@ -131,10 +129,8 @@ class TextSnifferExamples extends StatelessWidget {
                     'https://flutter.dev',
                     'https://google.com',
                   ],
-                  onTapMatch: (entry, matchText, type, index, error) {
-                    if (error == null) {
-                      debugPrint('Tapped on: $matchText');
-                    }
+                  onTapMatch: (entry, matchText, type, index) {
+                    debugPrint('Tapped on: $matchText');
                   },
                 )
               ],
@@ -176,10 +172,8 @@ class TextSnifferExamples extends StatelessWidget {
                     'https://flutter.dev',
                     'https://google.com',
                   ],
-                  onTapMatch: (match, matchText, type, index, error) {
-                    if (error == null) {
-                      debugPrint('Tapped on: $matchText');
-                    }
+                  onTapMatch: (match, matchText, type, index) {
+                    debugPrint('Tapped on: $matchText');
                   },
                 )
               ],

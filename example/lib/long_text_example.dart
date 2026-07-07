@@ -41,7 +41,7 @@ class LongTextExample extends StatelessWidget {
               EmailSniffer(),
               LinkSniffer(),
             ],
-            onTapMatch: (entry, matchText, type, idx, error) {
+            onTapMatch: (entry, matchText, type, idx) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Tapped: $matchText')),
               );

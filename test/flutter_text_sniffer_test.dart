@@ -117,7 +117,7 @@ void main() {
           sniffers: [_BracketType()],
           matchEntries: const ['posA', 'posB'],
           entryResolver: (matchText, type, index) => 'resolved-$matchText',
-          onTapMatch: (entry, matchText, type, index, error) {
+          onTapMatch: (entry, matchText, type, index) {
             tappedEntry = entry;
           },
         ),
@@ -142,7 +142,6 @@ void main() {
       String? tappedEntry;
       String? tappedText;
       int? tappedIndex;
-      Object? tappedError = 'sentinel';
 
       final spans = await _spansOf(
         tester,
@@ -150,11 +149,10 @@ void main() {
           text: 'See [A] and [B]',
           sniffers: [_BracketType()],
           matchEntries: const ['entryA', 'entryB'],
-          onTapMatch: (entry, matchText, type, index, error) {
+          onTapMatch: (entry, matchText, type, index) {
             tappedEntry = entry;
             tappedText = matchText;
             tappedIndex = index;
-            tappedError = error;
           },
         ),
       );
@@ -164,12 +162,10 @@ void main() {
       expect(tappedEntry, 'entryB');
       expect(tappedText, 'B');
       expect(tappedIndex, 1);
-      expect(tappedError, isNull);
     });
 
-    testWidgets('empty matchEntries yields null entry and no error',
+    testWidgets('empty matchEntries yields null entry',
         (tester) async {
-      Object? error = 'sentinel';
       String? entry = 'sentinel';
 
       final spans = await _spansOf(
@@ -177,9 +173,8 @@ void main() {
         TextSniffer<String>(
           text: 'See [A]',
           sniffers: [_BracketType()],
-          onTapMatch: (e, matchText, type, index, err) {
+          onTapMatch: (e, matchText, type, index) {
             entry = e;
-            error = err;
           },
         ),
       );
@@ -187,7 +182,6 @@ void main() {
       recognizerFor(spans, 'A').onTap!();
 
       expect(entry, isNull);
-      expect(error, isNull);
     });
 
     testWidgets('duplicate matched text keeps distinct indices',
@@ -199,7 +193,7 @@ void main() {
         TextSniffer<String>(
           text: '[X] then [X]',
           sniffers: [_BracketType()],
-          onTapMatch: (entry, matchText, type, index, error) {
+          onTapMatch: (entry, matchText, type, index) {
             indices.add(index);
           },
         ),
@@ -215,7 +209,6 @@ void main() {
 
     testWidgets('out-of-range matchEntries yields null entry, no throw',
         (tester) async {
-      Object? error = 'sentinel';
       String? entry = 'sentinel';
 
       final spans = await _spansOf(
@@ -224,9 +217,8 @@ void main() {
           text: '[A] [B] [C]',
           sniffers: [_BracketType()],
           matchEntries: const ['only-one'],
-          onTapMatch: (e, matchText, type, index, err) {
+          onTapMatch: (e, matchText, type, index) {
             entry = e;
-            error = err;
           },
         ),
       );
@@ -234,7 +226,49 @@ void main() {
       // Third match has no entry.
       recognizerFor(spans, 'C').onTap!();
       expect(entry, isNull);
-      expect(error, isNull);
+    });
+
+    testWidgets('onError catches and handles exceptions thrown in onTapMatch',
+        (tester) async {
+      Object? caughtError;
+      StackTrace? caughtStackTrace;
+
+      final spans = await _spansOf(
+        tester,
+        TextSniffer<String>(
+          text: 'See [A]',
+          sniffers: [_BracketType()],
+          onTapMatch: (entry, matchText, type, index) {
+            throw Exception('Test tap error');
+          },
+          onError: (error, stackTrace) {
+            caughtError = error;
+            caughtStackTrace = stackTrace;
+          },
+        ),
+      );
+
+      recognizerFor(spans, 'A').onTap!();
+
+      expect(caughtError, isA<Exception>());
+      expect(caughtError.toString(), contains('Test tap error'));
+      expect(caughtStackTrace, isNotNull);
+    });
+
+    testWidgets('rethrows exception if onTapMatch throws and onError is not provided',
+        (tester) async {
+      final spans = await _spansOf(
+        tester,
+        TextSniffer<String>(
+          text: 'See [A]',
+          sniffers: [_BracketType()],
+          onTapMatch: (entry, matchText, type, index) {
+            throw Exception('Unhandled error');
+          },
+        ),
+      );
+
+      expect(() => recognizerFor(spans, 'A').onTap!(), throwsException);
     });
   });
 
@@ -297,7 +331,7 @@ void main() {
             text: 'See [A] and [B]',
             sniffers: [_BracketType()],
             matchEntries: const ['entryA', 'entryB'],
-            onTapMatch: (entry, matchText, type, index, error) {
+            onTapMatch: (entry, matchText, type, index) {
               tappedIndex = index;
             },
             matchBuilder: (matchText, index, type, entry) =>

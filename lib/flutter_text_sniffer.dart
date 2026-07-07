@@ -16,10 +16,8 @@ import 'package:flutter_text_sniffer/sniffer_types.dart';
 /// - [type]: The type of the match (phone, email, link, or custom).
 /// - [index]: The zero-based position of the match across **all** matches in
 ///   the text, regardless of type (not per-type). Use [type] to disambiguate.
-/// - [error]: Reserved for reporting errors during a tap. Currently always
-///   `null`; kept for forward compatibility.
 typedef OnTapMatch<T> = void Function(
-    T? match, String matchText, Sniffer type, int index, Object? error);
+    T? match, String matchText, Sniffer type, int index);
 
 /// A callback type for building custom widgets for matched text segments.
 ///
@@ -216,7 +214,7 @@ class TextSniffer<T> extends StatefulWidget {
   /// TextSniffer<String>(
   ///   text: "Visit [Flutter] or [Google]",
   ///   matchEntries: ['https://flutter.dev', 'https://google.com'],
-  ///   onTapMatch: (link, match, type, index, error) {
+  ///   onTapMatch: (link, match, type, index) {
   ///     print('Tapped link: $link');
   ///     // Open the link or perform an action
   ///   },
@@ -227,6 +225,12 @@ class TextSniffer<T> extends StatefulWidget {
   /// links. When tapped, the corresponding URL is printed.
   /// - [match]: The object of type [T] associated with the tapped match.
   final OnTapMatch<T>? onTapMatch;
+
+  /// A callback function that is triggered when an error occurs during a tap action.
+  ///
+  /// If [onTapMatch] throws an error, this callback will catch and handle it.
+  /// If not provided, the error will be rethrown.
+  final void Function(Object error, StackTrace stackTrace)? onError;
 
   /// A custom builder function for creating the [TextSpan] for each match.
   ///
@@ -259,6 +263,7 @@ class TextSniffer<T> extends StatefulWidget {
     this.overflow = TextOverflow.clip,
     this.maxLines,
     this.onTapMatch,
+    this.onError,
     this.textWidthBasis = TextWidthBasis.parent,
     this.matchBuilder,
     this.matchEntries = const [],
@@ -330,11 +335,23 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
   /// latest [TextSniffer.onTapMatch]/[TextSniffer.matchEntries] are always used.
   ///
   /// [matchEntries] is optional and per-match: an entry may simply not exist for
-  /// the tapped match. In that case the callback receives a null entry and a
-  /// null error, so [matchText]/[type]/[index] are always usable.
+  /// the tapped match. In that case the callback receives a null entry, so
+  /// [matchText]/[type]/[index] are always usable.
   void _handleTap(String matchText, Sniffer type, int index) {
-    widget.onTapMatch
-        ?.call(_entryFor(matchText, type, index), matchText, type, index, null);
+    try {
+      widget.onTapMatch?.call(
+        _entryFor(matchText, type, index),
+        matchText,
+        type,
+        index,
+      );
+    } catch (e, stack) {
+      if (widget.onError != null) {
+        widget.onError!(e, stack);
+      } else {
+        rethrow;
+      }
+    }
   }
 
   /// Resolves the entry for a match, preferring [TextSniffer.entryResolver]

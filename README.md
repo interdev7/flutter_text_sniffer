@@ -55,10 +55,8 @@ TextSniffer(
      EmailSniffer(),
      LinkSniffer(),
    ],
-   onTapMatch: (match, matchText, type, index, error) {
-     if (error == null) {
-       print('Tapped on: $matchText');
-     }
+   onTapMatch: (match, matchText, type, index) {
+     print('Tapped on: $matchText');
    },
 )
 ```
@@ -92,10 +90,8 @@ TextSniffer<String>(
   sniffers: [
     CustomSnifferType(),
   ],
-  onTapMatch: (entry, match, type, index, error) {
-    if (error == null) {
-      showSnackBar(context, entry ?? "Not found");
-    }
+  onTapMatch: (entry, match, type, index) {
+    showSnackBar(context, entry ?? "Not found");
   },
   matchBuilder: (match, index, type, entry) {
     return Container(
@@ -182,10 +178,8 @@ TextSniffer(
     'https://flutter.dev',
     'https://google.com',
   ],
-  onTapMatch: (entry, matchText, type, index, error) {
-    if (error == null) {
-      print('Tapped on: $matchText');
-    }
+  onTapMatch: (entry, matchText, type, index) {
+    print('Tapped on: $matchText');
   },
 )
 ```
@@ -197,7 +191,7 @@ TextSniffer(
 `onTapMatch` is called whenever a matched segment is tapped:
 
 ```dart
-onTapMatch: (entry, matchText, type, index, error) { ... }
+onTapMatch: (entry, matchText, type, index) { ... }
 ```
 
 - **`matchText`**, **`type`** and **`index`** are always provided — `index` is the
@@ -207,7 +201,25 @@ onTapMatch: (entry, matchText, type, index, error) { ... }
   not supply one. `matchEntries` is fully **optional** and **per-match**: provide
   it only when you need extra data (e.g. a URL behind a `[label]`). Mixing types
   where only some need entries is fine — taps on the others simply get `entry: null`.
-- **`error`** is reserved for future error reporting and is currently always `null`.
+
+### Error Handling
+
+If an error is thrown inside `onTapMatch`, you can catch and handle it using the `onError` callback:
+
+```dart
+TextSniffer(
+  text: "Contact us at support@example.com",
+  sniffers: [EmailSniffer()],
+  onTapMatch: (match, matchText, type, index) {
+    throw Exception("Failed to handle tap");
+  },
+  onError: (error, stackTrace) {
+    print("Caught error: $error");
+  },
+)
+```
+
+If `onError` is not provided, the error will be rethrown.
 
 ```dart
 // Optional: attach data to specific matches.
@@ -215,7 +227,7 @@ TextSniffer<String>(
   text: "Visit [Flutter] or [Google]",
   sniffers: [CustomSnifferType()],
   matchEntries: const ['https://flutter.dev', 'https://google.com'],
-  onTapMatch: (url, matchText, type, index, error) {
+  onTapMatch: (url, matchText, type, index) {
     // url == 'https://google.com' when "[Google]" is tapped
   },
 )
@@ -235,7 +247,7 @@ ListView.builder(
   itemBuilder: (context, index) => TextSniffer(
     text: paragraphs[index],
     sniffers: [EmailSniffer(), LinkSniffer()],
-    onTapMatch: (entry, matchText, type, i, error) { /* ... */ },
+    onTapMatch: (entry, matchText, type, i) { /* ... */ },
   ),
 )
 ```
