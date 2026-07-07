@@ -164,8 +164,7 @@ void main() {
       expect(tappedIndex, 1);
     });
 
-    testWidgets('empty matchEntries yields null entry',
-        (tester) async {
+    testWidgets('empty matchEntries yields null entry', (tester) async {
       String? entry = 'sentinel';
 
       final spans = await _spansOf(
@@ -255,7 +254,8 @@ void main() {
       expect(caughtStackTrace, isNotNull);
     });
 
-    testWidgets('rethrows exception if onTapMatch throws and onError is not provided',
+    testWidgets(
+        'rethrows exception if onTapMatch throws and onError is not provided',
         (tester) async {
       final spans = await _spansOf(
         tester,
