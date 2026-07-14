@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_text_sniffer/flutter_text_sniffer.dart';
-import 'package:flutter_text_sniffer/sniffer_types.dart';
 
 /// A real-world example: an annotated book reader.
 ///

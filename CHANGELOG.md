@@ -1,3 +1,31 @@
+## [8.0.0]
+
+- **Breaking:** `TextSniffer` now inherits the ambient `MediaQuery` text
+  scaler by default (previously `TextScaler.noScaling`), so text respects the
+  system font-size accessibility setting. Pass
+  `textScaler: TextScaler.noScaling` to restore the old behavior.
+- **Breaking:** `LinkSniffer`'s default pattern is stricter — it now only
+  matches URLs with an explicit scheme (`https://…`) or a `www.` prefix,
+  instead of any `word.tld`-looking token. Use
+  `LinkSniffer(pattern: LinkSniffer.loosePattern)` for the old permissive
+  behavior.
+- Added built-in `PhoneSniffer`, `HashtagSniffer` and `MentionSniffer`.
+- Added `onLongPressMatch` callback — long-pressing a match (e.g. to copy a
+  phone number) now works on both styled spans and `matchBuilder` widgets;
+  a long press suppresses the subsequent tap.
+- Added `Sniffer.hoverStyle` — a style merged into the match style while the
+  mouse hovers over it (web/desktop).
+- `TextSniffer` now registers with an enclosing `SelectionArea`
+  automatically, making the text selectable without manual
+  `selectionRegistrar` wiring; the selection color falls back to the ambient
+  `DefaultSelectionStyle`.
+- `matchBuilder` widgets are now exposed to accessibility as buttons.
+- `sniffer_types.dart` is now exported from the main library — a single
+  `import 'package:flutter_text_sniffer/flutter_text_sniffer.dart';` suffices.
+- `RegexCache` is now bounded (128 entries, oldest evicted), so dynamically
+  generated patterns can no longer grow it without limit.
+- Added `repository`/`issue_tracker` metadata to the pubspec.
+
 ## [7.0.0]
 
 - **Breaking:** removed `error` parameter from `OnTapMatch` callback.

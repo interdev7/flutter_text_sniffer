@@ -1,10 +1,13 @@
-// ignore_for_file: public_member_api_docs, sort_constructors_first
 library flutter_text_sniffer;
+
+import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_text_sniffer/sniffer_types.dart';
+import 'package:flutter_text_sniffer/sniffers.dart';
+
+export 'package:flutter_text_sniffer/sniffers.dart';
 
 /// A callback type for handling tap events on matched text segments.
 ///
@@ -93,10 +96,15 @@ class TextSniffer<T> extends StatefulWidget {
     'Use of textScaleFactor was deprecated in preparation for the upcoming nonlinear text scaling support. '
     'This feature was deprecated after v3.12.0-2.0.pre.',
   )
-  double get textScaleFactor => textScaler.textScaleFactor;
+  double get textScaleFactor =>
+      (textScaler ?? TextScaler.noScaling).textScaleFactor;
 
   /// {@macro flutter.painting.textPainter.textScaler}
-  final TextScaler textScaler;
+  ///
+  /// Defaults to the ambient [MediaQuery]'s text scaler (respecting the
+  /// system font-size accessibility setting), or [TextScaler.noScaling] if
+  /// there is no ambient [MediaQuery].
+  final TextScaler? textScaler;
 
   /// An optional maximum number of lines for the text to span, wrapping if necessary.
   /// If the text exceeds the given number of lines, it will be truncated according
@@ -126,16 +134,16 @@ class TextSniffer<T> extends StatefulWidget {
 
   /// The [SelectionRegistrar] this rich text is subscribed to.
   ///
-  /// If this is set, [selectionColor] must be non-null.
+  /// Defaults to the ambient [SelectionContainer]'s registrar, if any, so the
+  /// text is selectable inside a [SelectionArea] without extra wiring.
   final SelectionRegistrar? selectionRegistrar;
 
   /// The color to use when painting the selection.
   ///
-  /// This is ignored if [selectionRegistrar] is null.
+  /// Defaults to the ambient [DefaultSelectionStyle.selectionColor].
   ///
-  /// See the section on selections in the [RichText] top-level API
-  /// documentation for more details on enabling selection in [RichText]
-  /// widgets.
+  /// This is ignored if no selection registrar is available (see
+  /// [selectionRegistrar]).
   final Color? selectionColor;
 
   /// Semantic label for accessibility.
@@ -143,9 +151,10 @@ class TextSniffer<T> extends StatefulWidget {
 
   /// A list of sniffer types to apply for text matching.
   ///
-  /// Each sniffer type uses its own regular expression to find matches in the text.
-  /// Available sniffer types:
-
+  /// Each sniffer type uses its own regular expression to find matches in the
+  /// text. Built-in sniffer types: [EmailSniffer], [LinkSniffer],
+  /// [PhoneSniffer], [HashtagSniffer], [MentionSniffer]. You can also define
+  /// your own:
   ///
   ///```dart
   /// class CustomSnifferType extends Sniffer {
@@ -169,8 +178,6 @@ class TextSniffer<T> extends StatefulWidget {
   ///   ],
   /// )
   ///```
-  ///
-
   final List<Sniffer> sniffers;
 
   /// The list of entries corresponding to each match in the text.
@@ -226,10 +233,21 @@ class TextSniffer<T> extends StatefulWidget {
   /// - [match]: The object of type [T] associated with the tapped match.
   final OnTapMatch<T>? onTapMatch;
 
-  /// A callback function that is triggered when an error occurs during a tap action.
+  /// A callback function that is triggered when a matching part of the text is
+  /// long-pressed.
   ///
-  /// If [onTapMatch] throws an error, this callback will catch and handle it.
-  /// If not provided, the error will be rethrown.
+  /// Receives the same arguments as [onTapMatch]. Typical use: copying a phone
+  /// number or link to the clipboard, or showing a context menu.
+  ///
+  /// When a long press fires, the subsequent tap for that gesture is
+  /// suppressed, so [onTapMatch] is not also called.
+  final OnTapMatch<T>? onLongPressMatch;
+
+  /// A callback function that is triggered when an error occurs during a tap
+  /// or long-press action.
+  ///
+  /// If [onTapMatch] or [onLongPressMatch] throws an error, this callback will
+  /// catch and handle it. If not provided, the error will be rethrown.
   final void Function(Object error, StackTrace stackTrace)? onError;
 
   /// A custom builder function for creating the [TextSpan] for each match.
@@ -245,6 +263,7 @@ class TextSniffer<T> extends StatefulWidget {
   /// - [matchEntry]: The corresponding entry from [matchEntries] if available.
   final MatchBuilder<T>? matchBuilder;
 
+  /// Creates a [TextSniffer].
   const TextSniffer({
     super.key,
     required this.text,
@@ -253,7 +272,7 @@ class TextSniffer<T> extends StatefulWidget {
     this.semanticsLabel,
     this.locale,
     this.selectionColor,
-    this.textScaler = TextScaler.noScaling,
+    this.textScaler,
     this.selectionRegistrar,
     this.strutStyle,
     this.softWrap = true,
@@ -263,6 +282,7 @@ class TextSniffer<T> extends StatefulWidget {
     this.overflow = TextOverflow.clip,
     this.maxLines,
     this.onTapMatch,
+    this.onLongPressMatch,
     this.onError,
     this.textWidthBasis = TextWidthBasis.parent,
     this.matchBuilder,
@@ -282,13 +302,17 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
   /// not on every rebuild.
   List<_Segment> _segments = const [];
 
-  /// One reusable tap recognizer per matched segment, indexed by match index.
+  /// One reusable recognizer per matched segment, keyed by match index.
   ///
   /// Recognizers hold resources and must be disposed. They are created lazily,
-  /// reused across rebuilds, and their `onTap` reads [widget] at tap time, so
-  /// changing [TextSniffer.onTapMatch]/[TextSniffer.matchEntries] does not
+  /// reused across rebuilds, and their handlers read [widget] at event time,
+  /// so changing [TextSniffer.onTapMatch]/[TextSniffer.matchEntries] does not
   /// require re-parsing or recreating them.
-  final List<TapGestureRecognizer> _recognizers = [];
+  final Map<int, _TapAndLongPressRecognizer> _recognizers = {};
+
+  /// The match index currently under the mouse pointer, if its sniffer has a
+  /// [Sniffer.hoverStyle]; used to apply the hover style on web/desktop.
+  int? _hoveredIndex;
 
   /// Signature of the current patterns, used to detect when re-parsing is needed.
   String _patternSignature = '';
@@ -315,7 +339,7 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
   }
 
   void _disposeRecognizers() {
-    for (final r in _recognizers) {
+    for (final r in _recognizers.values) {
       r.dispose();
     }
     _recognizers.clear();
@@ -327,6 +351,7 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
   /// Parses the text into matched/non-matched segments.
   void _parse() {
     _disposeRecognizers();
+    _hoveredIndex = null;
     _patternSignature = _signatureOf(widget.sniffers);
     _segments = _parseSegments(widget.text, widget.sniffers);
   }
@@ -338,13 +363,24 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
   /// the tapped match. In that case the callback receives a null entry, so
   /// [matchText]/[type]/[index] are always usable.
   void _handleTap(String matchText, Sniffer type, int index) {
+    _invoke(widget.onTapMatch, matchText, type, index);
+  }
+
+  /// Handles a long press on a matched segment. Returns whether the event was
+  /// consumed, i.e. whether [TextSniffer.onLongPressMatch] is set: when it is
+  /// not, the gesture must still resolve as a regular tap.
+  bool _handleLongPress(String matchText, Sniffer type, int index) {
+    if (widget.onLongPressMatch == null) return false;
+    _invoke(widget.onLongPressMatch, matchText, type, index);
+    return true;
+  }
+
+  /// Invokes [callback] with the resolved entry, routing errors to
+  /// [TextSniffer.onError] (or rethrowing when it is not provided).
+  void _invoke(
+      OnTapMatch<T>? callback, String matchText, Sniffer type, int index) {
     try {
-      widget.onTapMatch?.call(
-        _entryFor(matchText, type, index),
-        matchText,
-        type,
-        index,
-      );
+      callback?.call(_entryFor(matchText, type, index), matchText, type, index);
     } catch (e, stack) {
       if (widget.onError != null) {
         widget.onError!(e, stack);
@@ -365,17 +401,18 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
   }
 
   /// Returns a reusable recognizer for the match at [index], creating it once.
-  TapGestureRecognizer _recognizerFor(
+  ///
+  /// Handlers are bound once per parse; they capture the segment's own
+  /// [matchText]/[type] and read the current [widget] at event time.
+  _TapAndLongPressRecognizer _recognizerFor(
       String matchText, Sniffer type, int index) {
-    while (_recognizers.length <= index) {
-      final i = _recognizers.length;
-      _recognizers.add(TapGestureRecognizer());
-      // Bind once; the closure reads the current widget at tap time.
-      final segment =
-          _segments.firstWhere((s) => s.isMatch && s.matchIndex == i);
-      _recognizers[i].onTap = () => _handleTap(segment.text, segment.type!, i);
-    }
-    return _recognizers[index];
+    return _recognizers.putIfAbsent(index, () {
+      final recognizer = _TapAndLongPressRecognizer();
+      recognizer.onTap = () => _handleTap(matchText, type, index);
+      recognizer.onLongPressMatch =
+          () => _handleLongPress(matchText, type, index);
+      return recognizer;
+    });
   }
 
   @override
@@ -397,38 +434,114 @@ class _TextSnifferState<T> extends State<TextSniffer<T>> {
         final entry = _entryFor(segment.text, type, index);
         spans.add(WidgetSpan(
           alignment: PlaceholderAlignment.middle,
-          child: GestureDetector(
-            onTap: () => _handleTap(segment.text, type, index),
-            child: widget.matchBuilder!(segment.text, index, type, entry),
+          child: Semantics(
+            button: true,
+            child: GestureDetector(
+              onTap: () => _handleTap(segment.text, type, index),
+              onLongPress: widget.onLongPressMatch == null
+                  ? null
+                  : () => _handleLongPress(segment.text, type, index),
+              child: widget.matchBuilder!(segment.text, index, type, entry),
+            ),
           ),
         ));
         continue;
       }
 
+      final hoverStyle = type.hoverStyle;
+      final style = (hoverStyle != null && _hoveredIndex == index)
+          ? (type.style ?? const TextStyle()).merge(hoverStyle)
+          : type.style;
+
       spans.add(TextSpan(
         text: segment.text,
-        style: type.style,
+        style: style,
         // Show a clickable cursor on web/desktop; harmless on touch platforms.
         mouseCursor: SystemMouseCursors.click,
+        onEnter: hoverStyle == null
+            ? null
+            : (_) => setState(() => _hoveredIndex = index),
+        onExit: hoverStyle == null
+            ? null
+            : (_) => setState(() => _hoveredIndex = null),
         recognizer: _recognizerFor(segment.text, type, index),
       ));
     }
 
+    final registrar =
+        widget.selectionRegistrar ?? SelectionContainer.maybeOf(context);
+
     return RichText(
       textAlign: widget.textAlign,
       locale: widget.locale,
-      selectionColor: widget.selectionColor,
-      selectionRegistrar: widget.selectionRegistrar,
+      selectionColor: registrar == null
+          ? widget.selectionColor
+          : widget.selectionColor ??
+              DefaultSelectionStyle.of(context).selectionColor ??
+              DefaultSelectionStyle.defaultColor,
+      selectionRegistrar: registrar,
       softWrap: widget.softWrap,
       strutStyle: widget.strutStyle,
       textDirection: widget.textDirection,
       textHeightBehavior: widget.textHeightBehavior,
-      textScaler: widget.textScaler,
+      textScaler: widget.textScaler ??
+          MediaQuery.maybeTextScalerOf(context) ??
+          TextScaler.noScaling,
       textWidthBasis: widget.textWidthBasis,
       maxLines: widget.maxLines,
       overflow: widget.overflow,
       text: TextSpan(children: spans, semanticsLabel: widget.semanticsLabel),
     );
+  }
+}
+
+/// A [TapGestureRecognizer] that additionally reports long presses without
+/// giving up the tap: [TextSpan.recognizer] accepts only a single recognizer,
+/// so tap and long-press must be handled by one object.
+///
+/// A timer started on tap-down fires [onLongPressMatch] after
+/// [kLongPressTimeout]; if the handler consumed the event (returned true), the
+/// tap for that gesture is suppressed.
+class _TapAndLongPressRecognizer extends TapGestureRecognizer {
+  /// Called when the pointer has been held down past [kLongPressTimeout].
+  /// Returns whether the long press was consumed; when false, the gesture
+  /// still resolves as a regular tap on release.
+  bool Function()? onLongPressMatch;
+
+  Timer? _timer;
+  bool _longPressConsumed = false;
+
+  @override
+  void handleTapDown({required PointerDownEvent down}) {
+    _longPressConsumed = false;
+    _timer = Timer(kLongPressTimeout, () {
+      _longPressConsumed = onLongPressMatch?.call() ?? false;
+    });
+    super.handleTapDown(down: down);
+  }
+
+  @override
+  void handleTapUp(
+      {required PointerDownEvent down, required PointerUpEvent up}) {
+    _timer?.cancel();
+    if (!_longPressConsumed) {
+      super.handleTapUp(down: down, up: up);
+    }
+  }
+
+  @override
+  void handleTapCancel(
+      {required PointerDownEvent down,
+      PointerCancelEvent? cancel,
+      required String reason}) {
+    _timer?.cancel();
+    super.handleTapCancel(down: down, cancel: cancel, reason: reason);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 }
 
@@ -540,7 +653,14 @@ List<_Segment> _parseSegments(String text, List<Sniffer> sniffers) {
 
 /// Cache for regular expressions to avoid creating new instances on each call.
 class RegexCache {
+  /// Maximum number of cached patterns; the oldest entry is evicted beyond
+  /// this, so dynamically generated patterns cannot grow the cache unbounded.
+  static const int maxEntries = 128;
+
   static final Map<String, RegExp> _cache = {};
+
+  /// The number of patterns currently cached; never exceeds [maxEntries].
+  static int get size => _cache.length;
 
   /// Get a cached regular expression equivalent to [pattern].
   ///
@@ -554,6 +674,11 @@ class RegexCache {
         '${pattern.isDotAll ? 'd' : ''}'
         '${pattern.isUnicode ? 'u' : ''}'
         ':${pattern.pattern}';
-    return _cache.putIfAbsent(key, () => pattern);
+    final cached = _cache[key];
+    if (cached != null) return cached;
+    if (_cache.length >= maxEntries) {
+      _cache.remove(_cache.keys.first);
+    }
+    return _cache[key] = pattern;
   }
 }

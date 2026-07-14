@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_text_sniffer/flutter_text_sniffer.dart';
-import 'package:flutter_text_sniffer/sniffer_types.dart';
 import 'package:flutter_text_sniffer_example/book_excerpt_example.dart';
 import 'package:flutter_text_sniffer_example/long_text_example.dart';
 

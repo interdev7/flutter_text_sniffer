@@ -17,6 +17,9 @@
 - [Custom Builder](#custom-builder)
 - [Defining Custom sniffers](#defining-custom-patterns)
 - [Handling Taps & matchEntries](#handling-taps--matchentries)
+- [Built-in Sniffers](#built-in-sniffers)
+- [Long Press & Hover](#long-press--hover)
+- [Selection](#selection)
 - [Large Texts (books, articles)](#large-texts-books-articles)
 - [Contributing](#contributing)
 - [License](#license)
@@ -24,11 +27,12 @@
 ## Features
 
 - **Customizable Patterns**: Use regular expressions to define text patterns.
-- **Interactive Text**: Make text segments interactive, responding to user taps.
-- **Styling Options**: Apply styles to both matching and non-matching text.
+- **Interactive Text**: Make text segments respond to taps and long presses.
+- **Styling Options**: Apply styles to both matching and non-matching text, plus hover styles on web/desktop.
 - **Custom Match Builders**: Define how detected patterns appear.
-- **Multiple Search Sniffers**: Supports for emails and links by default but you can create own Sniffers.
+- **Built-in Sniffers**: `EmailSniffer`, `LinkSniffer`, `PhoneSniffer`, `HashtagSniffer`, `MentionSniffer` — or create your own.
 - **Individual Styling**: Style different types of matches individually.
+- **Accessible by default**: respects the system font-size setting, exposes matches to screen readers, and works inside `SelectionArea`.
 
 ## Installation
 
@@ -232,6 +236,50 @@ TextSniffer<String>(
   },
 )
 ```
+
+## Built-in Sniffers
+
+| Sniffer | Matches | Example |
+|---|---|---|
+| `EmailSniffer` | email addresses | `user@example.com` |
+| `LinkSniffer` | URLs with a scheme or `www.` prefix | `https://flutter.dev`, `www.example.com` |
+| `PhoneSniffer` | phone numbers | `+1 (555) 123-4567` |
+| `HashtagSniffer` | hashtags (unicode-aware) | `#flutter` |
+| `MentionSniffer` | @-mentions | `@flutterdev` |
+
+By default `LinkSniffer` ignores bare hosts like `example.com` to avoid false
+positives. If you want the older permissive matching, opt in with:
+
+```dart
+LinkSniffer(pattern: LinkSniffer.loosePattern)
+```
+
+## Long Press & Hover
+
+Long presses are reported via `onLongPressMatch` (same signature as
+`onTapMatch`); when a long press fires, the tap for that gesture is suppressed.
+Every built-in sniffer also accepts a `hoverStyle`, merged into the match style
+while the mouse hovers over it (web/desktop):
+
+```dart
+TextSniffer(
+  text: "Call +1 (555) 123-4567",
+  sniffers: [
+    PhoneSniffer(
+      hoverStyle: const TextStyle(decoration: TextDecoration.underline),
+    ),
+  ],
+  onLongPressMatch: (entry, matchText, type, index) {
+    Clipboard.setData(ClipboardData(text: matchText));
+  },
+)
+```
+
+## Selection
+
+Wrap `TextSniffer` in a [`SelectionArea`](https://api.flutter.dev/flutter/material/SelectionArea-class.html)
+and the text becomes selectable automatically — no `selectionRegistrar` wiring
+needed. Use `selectionColor` to override the highlight color.
 
 ## Large Texts (books, articles)
 

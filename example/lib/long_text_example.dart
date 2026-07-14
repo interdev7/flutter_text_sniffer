@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_text_sniffer/flutter_text_sniffer.dart';
-import 'package:flutter_text_sniffer/sniffer_types.dart';
 
 /// Demonstrates the recommended way to use [TextSniffer] with a large body of
 /// text (e.g. a book reader).

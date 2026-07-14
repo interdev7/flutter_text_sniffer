@@ -1,8 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_text_sniffer/flutter_text_sniffer.dart';
-import 'package:flutter_text_sniffer/sniffer_types.dart';
 
 /// Collects all leaf [TextSpan]s (those carrying `text`) from a span tree,
 /// in order.
@@ -377,8 +377,458 @@ void main() {
       );
       // ignore: deprecated_member_use_from_same_package
       expect(sniffer.textScaleFactor, 1.5);
+
+      // With no explicit textScaler the deprecated getter reports no scaling.
+      // ignore: deprecated_member_use_from_same_package
+      expect(const TextSniffer(text: 'x').textScaleFactor, 1.0);
+    });
+
+    testWidgets('strict LinkSniffer skips bare hosts but matches www/scheme',
+        (tester) async {
+      final spans = await _spansOf(
+        tester,
+        TextSniffer(
+          text: 'see example.com and www.example.com and https://a.dev',
+          sniffers: [LinkSniffer()],
+        ),
+      );
+
+      final matched =
+          spans.where((s) => s.recognizer != null).map((s) => s.text).toList();
+      expect(matched, ['www.example.com', 'https://a.dev']);
+    });
+
+    testWidgets('LinkSniffer.loosePattern matches scheme-less hosts',
+        (tester) async {
+      final spans = await _spansOf(
+        tester,
+        TextSniffer(
+          text: 'see example.com now',
+          sniffers: [LinkSniffer(pattern: LinkSniffer.loosePattern)],
+        ),
+      );
+
+      expect(spans.any((s) => s.text == 'example.com'), isTrue);
+    });
+
+    testWidgets('PhoneSniffer matches common phone formats', (tester) async {
+      final spans = await _spansOf(
+        tester,
+        TextSniffer(
+          text: 'Call +1 (555) 123-4567 or 8-800-555-35-35 today',
+          sniffers: [PhoneSniffer()],
+        ),
+      );
+
+      final matched =
+          spans.where((s) => s.recognizer != null).map((s) => s.text).toList();
+      expect(matched, ['+1 (555) 123-4567', '8-800-555-35-35']);
+    });
+
+    testWidgets('HashtagSniffer matches unicode hashtags', (tester) async {
+      final spans = await _spansOf(
+        tester,
+        TextSniffer(
+          text: 'love #flutter and #дартс a#b',
+          sniffers: [HashtagSniffer()],
+        ),
+      );
+
+      final matched =
+          spans.where((s) => s.recognizer != null).map((s) => s.text).toList();
+      expect(matched, ['#flutter', '#дартс']);
+    });
+
+    testWidgets('MentionSniffer matches @-mentions', (tester) async {
+      final spans = await _spansOf(
+        tester,
+        TextSniffer(
+          text: 'ping @alice and a@b.com',
+          sniffers: [MentionSniffer()],
+        ),
+      );
+
+      final matched =
+          spans.where((s) => s.recognizer != null).map((s) => s.text).toList();
+      expect(matched, ['@alice']);
+    });
+
+    test('new types expose readable names and accept hoverStyle', () {
+      expect(PhoneSniffer().toString(), 'phone');
+      expect(HashtagSniffer().toString(), 'hashtag');
+      expect(MentionSniffer().toString(), 'mention');
+
+      const hover = TextStyle(decoration: TextDecoration.underline);
+      expect(EmailSniffer(hoverStyle: hover).hoverStyle, hover);
+      expect(LinkSniffer(hoverStyle: hover).hoverStyle, hover);
+      expect(PhoneSniffer(hoverStyle: hover).hoverStyle, hover);
+      expect(HashtagSniffer(hoverStyle: hover).hoverStyle, hover);
+      expect(MentionSniffer(hoverStyle: hover).hoverStyle, hover);
     });
   });
+
+  group('text scaling', () {
+    testWidgets('inherits the ambient MediaQuery textScaler by default',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: Scaffold(
+              body: TextSniffer(text: 'a@b.com', sniffers: [EmailSniffer()]),
+            ),
+          ),
+        ),
+      );
+
+      final richText = tester.widget<RichText>(find.byType(RichText));
+      expect(richText.textScaler, const TextScaler.linear(2));
+    });
+
+    testWidgets('an explicit textScaler overrides the ambient one',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: Scaffold(
+              body: TextSniffer(text: 'x', textScaler: TextScaler.noScaling),
+            ),
+          ),
+        ),
+      );
+
+      final richText = tester.widget<RichText>(find.byType(RichText));
+      expect(richText.textScaler, TextScaler.noScaling);
+    });
+  });
+
+  group('hover', () {
+    testWidgets('applies hoverStyle on enter and reverts on exit',
+        (tester) async {
+      final sniffers = [
+        EmailSniffer(
+          hoverStyle: const TextStyle(decoration: TextDecoration.underline),
+        ),
+      ];
+
+      TextSpan matchSpan() {
+        final richText = tester.widget<RichText>(find.byType(RichText));
+        return _collectTextSpans(richText.text)
+            .firstWhere((s) => s.text == 'a@b.com');
+      }
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer(text: 'mail a@b.com now', sniffers: sniffers),
+        ),
+      ));
+
+      expect(matchSpan().style?.decoration, isNull);
+      expect(matchSpan().onEnter, isNotNull);
+
+      matchSpan().onEnter!(const PointerEnterEvent());
+      await tester.pump();
+      expect(matchSpan().style?.decoration, TextDecoration.underline);
+      // The base style is preserved under the merged hover style.
+      expect(matchSpan().style?.color, Colors.redAccent);
+
+      matchSpan().onExit!(const PointerExitEvent());
+      await tester.pump();
+      expect(matchSpan().style?.decoration, isNull);
+    });
+  });
+
+  group('long press', () {
+    testWidgets('fires onLongPressMatch and suppresses the tap',
+        (tester) async {
+      final events = <String>[];
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer<String>(
+            text: '[A] rest of the text',
+            sniffers: [_BracketType()],
+            onTapMatch: (entry, matchText, type, index) {
+              events.add('tap:$matchText');
+            },
+            onLongPressMatch: (entry, matchText, type, index) {
+              events.add('long:$matchText:$index');
+            },
+          ),
+        ),
+      ));
+
+      // The match is the first glyph, so press just inside the paragraph.
+      final pos = tester.getTopLeft(find.byType(RichText)) +
+          Offset(7, tester.getSize(find.byType(RichText)).height / 2);
+      final gesture = await tester.startGesture(pos);
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.up();
+      await tester.pump();
+
+      expect(events, ['long:A:0']);
+    });
+
+    testWidgets('a long hold without onLongPressMatch still delivers the tap',
+        (tester) async {
+      final events = <String>[];
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer<String>(
+            text: '[A] rest of the text',
+            sniffers: [_BracketType()],
+            onTapMatch: (entry, matchText, type, index) {
+              events.add('tap:$matchText');
+            },
+          ),
+        ),
+      ));
+
+      final pos = tester.getTopLeft(find.byType(RichText)) +
+          Offset(7, tester.getSize(find.byType(RichText)).height / 2);
+      final gesture = await tester.startGesture(pos);
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.up();
+      await tester.pump();
+
+      expect(events, ['tap:A']);
+    });
+
+    testWidgets('a quick tap is delivered as a tap, not a long press',
+        (tester) async {
+      final events = <String>[];
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer<String>(
+            text: '[A] rest of the text',
+            sniffers: [_BracketType()],
+            onTapMatch: (entry, matchText, type, index) {
+              events.add('tap:$matchText');
+            },
+            onLongPressMatch: (entry, matchText, type, index) {
+              events.add('long:$matchText');
+            },
+          ),
+        ),
+      ));
+
+      final pos = tester.getTopLeft(find.byType(RichText)) +
+          Offset(7, tester.getSize(find.byType(RichText)).height / 2);
+      final gesture = await tester.startGesture(pos);
+      await tester.pump(const Duration(milliseconds: 50));
+      await gesture.up();
+      await tester.pump();
+
+      expect(events, ['tap:A']);
+    });
+
+    testWidgets('a cancelled gesture fires neither callback', (tester) async {
+      final events = <String>[];
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer<String>(
+            text: '[A] rest of the text',
+            sniffers: [_BracketType()],
+            onTapMatch: (entry, matchText, type, index) {
+              events.add('tap');
+            },
+            onLongPressMatch: (entry, matchText, type, index) {
+              events.add('long');
+            },
+          ),
+        ),
+      ));
+
+      final pos = tester.getTopLeft(find.byType(RichText)) +
+          Offset(7, tester.getSize(find.byType(RichText)).height / 2);
+      final gesture = await tester.startGesture(pos);
+      await tester.pump(const Duration(milliseconds: 50));
+      await gesture.cancel();
+      await tester.pump(kLongPressTimeout);
+
+      expect(events, isEmpty);
+    });
+
+    testWidgets('disposing mid-press cancels the pending long-press timer',
+        (tester) async {
+      final events = <String>[];
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer<String>(
+            text: '[A] rest of the text',
+            sniffers: [_BracketType()],
+            onLongPressMatch: (entry, matchText, type, index) {
+              events.add('long');
+            },
+          ),
+        ),
+      ));
+
+      final pos = tester.getTopLeft(find.byType(RichText)) +
+          Offset(7, tester.getSize(find.byType(RichText)).height / 2);
+      final gesture = await tester.startGesture(pos);
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Remove the widget while the pointer is down.
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.pump(kLongPressTimeout);
+      await gesture.up();
+
+      expect(events, isEmpty);
+    });
+
+    testWidgets('routes onLongPressMatch errors to onError', (tester) async {
+      Object? caughtError;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer<String>(
+            text: '[A] rest of the text',
+            sniffers: [_BracketType()],
+            onLongPressMatch: (entry, matchText, type, index) {
+              throw Exception('long-press error');
+            },
+            onError: (error, stackTrace) {
+              caughtError = error;
+            },
+          ),
+        ),
+      ));
+
+      final pos = tester.getTopLeft(find.byType(RichText)) +
+          Offset(7, tester.getSize(find.byType(RichText)).height / 2);
+      final gesture = await tester.startGesture(pos);
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.up();
+
+      expect(caughtError.toString(), contains('long-press error'));
+    });
+
+    testWidgets('matchBuilder widgets receive long presses too',
+        (tester) async {
+      final events = <String>[];
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer<String>(
+            text: 'See [A]',
+            sniffers: [_BracketType()],
+            onLongPressMatch: (entry, matchText, type, index) {
+              events.add('long:$matchText');
+            },
+            matchBuilder: (matchText, index, type, entry) =>
+                Text(matchText, key: ValueKey('m$index')),
+          ),
+        ),
+      ));
+
+      await tester.longPress(find.byKey(const ValueKey('m0')));
+      expect(events, ['long:A']);
+    });
+  });
+
+  group('accessibility', () {
+    testWidgets('matchBuilder matches are exposed as buttons to semantics',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TextSniffer<String>(
+            text: 'See [A]',
+            sniffers: [_BracketType()],
+            matchBuilder: (matchText, index, type, entry) => Text(matchText),
+          ),
+        ),
+      ));
+
+      expect(
+        tester.getSemantics(find.text('A')),
+        isSemantics(isButton: true, hasTapAction: true),
+      );
+    });
+  });
+
+  group('selection', () {
+    testWidgets('registers with an enclosing SelectionArea automatically',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SelectionArea(
+            child: TextSniffer(text: 'a@b.com', sniffers: [EmailSniffer()]),
+          ),
+        ),
+      ));
+
+      final richText = tester.widget<RichText>(find.byType(RichText).last);
+      expect(richText.selectionRegistrar, isNotNull);
+      expect(richText.selectionColor, isNotNull);
+    });
+
+    testWidgets('an explicit selectionColor wins inside a SelectionArea',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SelectionArea(
+            child: TextSniffer(
+              text: 'a@b.com',
+              sniffers: [EmailSniffer()],
+              selectionColor: Colors.amber,
+            ),
+          ),
+        ),
+      ));
+
+      final richText = tester.widget<RichText>(find.byType(RichText).last);
+      expect(richText.selectionColor, Colors.amber);
+    });
+
+    testWidgets('falls back to the default selection color without any style',
+        (tester) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: TextSniffer(
+            text: 'a@b.com',
+            sniffers: [EmailSniffer()],
+            selectionRegistrar: _FakeRegistrar(),
+          ),
+        ),
+      );
+
+      final richText = tester.widget<RichText>(find.byType(RichText));
+      expect(richText.selectionColor, DefaultSelectionStyle.defaultColor);
+    });
+  });
+
+  group('RegexCache', () {
+    test('returns the cached instance for an equivalent pattern', () {
+      final a = RegExp(r'cache-hit-test');
+      final b = RegExp(r'cache-hit-test');
+      expect(identical(RegexCache.get(a), RegexCache.get(b)), isTrue);
+    });
+
+    test('evicts the oldest entry once maxEntries is exceeded', () {
+      for (int i = 0; i < RegexCache.maxEntries * 2; i++) {
+        RegexCache.get(RegExp('filler-$i'));
+      }
+
+      // Old entries were evicted; the cache never grows past its cap.
+      expect(RegexCache.size, RegexCache.maxEntries);
+    });
+  });
+}
+
+/// A no-op [SelectionRegistrar] for testing registrar plumbing.
+class _FakeRegistrar implements SelectionRegistrar {
+  @override
+  void add(Selectable selectable) {}
+
+  @override
+  void remove(Selectable selectable) {}
 }
 
 /// Case-sensitive sniffer: matches only the capitalized word "Alice".
